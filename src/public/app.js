@@ -2,10 +2,11 @@ const currentYear = new Date().getFullYear();
 
 const state = {
   view: 'board', // 'board' | 'report'
-  channel: 'E-Mail',
+  channel: '',
   ampel: 'alle',
   mode: 'all', // 'all' | 'active' | 'done'
   expandedId: null,
+  effortId: null,
   freshId: null,
   pendingStatus: null,
   pendingDecFeedback: null, // { id, sentiment }
@@ -21,13 +22,6 @@ const state = {
     timeMode: 'measured', // 'measured' | 'projected'
     minutesPerRequest: 5
   }
-};
-
-const WORDING_TEMPLATES = {
-  Geprüft: 'Vielen Dank für Ihre Rückmeldung. Wir prüfen Ihren Vorschlag intern.',
-  'In Arbeit': 'Vielen Dank für Ihren Hinweis — wir arbeiten bereits an einer Verbesserung.',
-  Umgesetzt: 'Die von Ihnen angeregte Verbesserung ist ab sofort verfügbar. Besten Dank!',
-  Abgelehnt: 'Vielen Dank für Ihren Vorschlag. Aktuell können wir dies leider nicht umsetzen.'
 };
 
 function esc(value) {
@@ -84,8 +78,8 @@ function fmtDurationHuman(totalSec, { estimated = false } = {}) {
   return `${prefix}${remSec}s`;
 }
 
-// --- Wiederverwendbarer M:S + 2-Spalten Scroll-Wheel Picker (ohne Dropdown-Menüs) ---
-function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = 'M:S' } = {}) {
+// --- Wiederverwendbarer Zeit- & 2-Spalten Scroll-Wheel Picker (ohne Dropdown-Menüs) ---
+function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = 'Zeit' } = {}) {
   const minItems = Array.from({ length: 61 }, (_, i) => {
     const lbl = String(i).padStart(2, '0');
     return `<div class="wheel-opt" data-val="${i}">${lbl}</div>`;
@@ -107,13 +101,13 @@ function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = '
         inputmode="numeric"
         placeholder="${esc(placeholder)}"
         value="${esc(valStr)}"
-        aria-label="Dauer in Minuten:Sekunden"
-        title="Dauer M:S eintippen oder mit Mausrad drehen"
+        aria-label="Zeitaufwand (Minuten:Sekunden)"
+        title="Zeitaufwand z. B. 04:30 eingeben oder mit Mausrad drehen"
       />
       <button type="button" class="dur-wheel-btn" aria-label="Zeitrad öffnen" title="Zeitrad (Min : Sek)">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <div class="dur-popover hidden" role="dialog" aria-label="Zeitrad Minuten und Sekunden">
+      <div class="dur-popover hidden" role="dialog" aria-label="Zeitaufwand wählen">
         <div class="wheel-head"><span>Min</span><span></span><span>Sek</span></div>
         <div class="wheel-body">
           <div class="wheel-highlight" aria-hidden="true"></div>
@@ -121,12 +115,9 @@ function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = '
           <div class="wheel-colon">:</div>
           <div class="wheel-col" data-wheel="sec">${secItems}</div>
         </div>
-        <div class="wheel-presets">
-          <button type="button" class="wp-btn" data-preset="120">2:00</button>
-          <button type="button" class="wp-btn" data-preset="300">5:00</button>
-          <button type="button" class="wp-btn" data-preset="600">10:00</button>
-          <button type="button" class="wp-btn" data-preset="900">15:00</button>
-          <button type="button" class="wp-btn" data-preset="0">0:00</button>
+        <div class="wheel-foot">
+          <button type="button" class="text-link js-wheel-clear">Leeren</button>
+          <button type="button" class="st-btn active js-wheel-done" style="padding:3px 10px;">OK</button>
         </div>
       </div>
     </div>
@@ -279,12 +270,14 @@ function bindDurationPicker(pickerEl, onChange) {
     setSeconds(curM * 60 + s, { syncText: true, syncWheel: true, smoothScroll: true });
   });
 
-  // Schnell-Presets (2:00 / 5:00 / 10:00 / 15:00 / 0:00)
-  popover.querySelectorAll('.wp-btn').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      setSeconds(Number(btn.dataset.preset || 0), { syncText: true, syncWheel: true, smoothScroll: true });
-    });
+  // Leeren / OK im Zeitrad
+  popover.querySelector('.js-wheel-clear')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    setSeconds(0, { syncText: true, syncWheel: true, smoothScroll: true });
+  });
+  popover.querySelector('.js-wheel-done')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closePopover();
   });
 
   popover.addEventListener('click', (ev) => ev.stopPropagation());
@@ -322,8 +315,9 @@ async function api(url, options = {}) {
 
 function ampelDot(feasibility) {
   if (feasibility === 'einfach') return '<span class="dot-sm dot-green" title="Einfach"></span>';
+  if (feasibility === 'mittel') return '<span class="dot-sm dot-amber" title="Mittel"></span>';
   if (feasibility === 'aufwaendig') return '<span class="dot-sm dot-red" title="Aufwändig"></span>';
-  return '<span class="dot-sm dot-amber" title="Mittel"></span>';
+  return '<span class="dot-sm dot-open" title="Unbewertet"></span>';
 }
 
 function statusBadge(status) {
@@ -392,13 +386,13 @@ async function loadIdeas() {
 
   const totalMentions = allIdeas.reduce((sum, i) => sum + (Number(i.votes) || 1), 0);
   document.getElementById('count-all').textContent = `${allIdeas.length} (${totalMentions}×)`;
-  document.getElementById('count-green').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'einfach').length);
-  document.getElementById('count-amber').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'mittel').length);
-  document.getElementById('count-red').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'aufwaendig').length);
+  document.getElementById('count-green').textContent = String(allIdeas.filter((i) => i.feasibility === 'einfach').length);
+  document.getElementById('count-amber').textContent = String(allIdeas.filter((i) => i.feasibility === 'mittel').length);
+  document.getElementById('count-red').textContent = String(allIdeas.filter((i) => i.feasibility === 'aufwaendig').length);
 
   let ideas = allIdeas;
   if (state.ampel !== 'alle') {
-    ideas = ideas.filter((i) => (i.feasibility || 'mittel') === state.ampel);
+    ideas = ideas.filter((i) => i.feasibility === state.ampel);
   }
   if (state.mode === 'active') {
     ideas = ideas.filter((i) => ['In Arbeit', 'Angenommen', 'Geprüft'].includes(i.status));
@@ -414,12 +408,14 @@ async function loadIdeas() {
 
   listEl.innerHTML = ideas
     .map((item) => {
-      const feas = item.feasibility || 'mittel';
-      const channel = item.channel || 'E-Mail';
+      const feas = item.feasibility || 'unbewertet';
+      const channel = (item.channel || '').trim();
       const author = item.submitted_by ? ` · ${item.submitted_by}` : '';
       const dateStr = fmtDateCH(item.created_at);
       const tasks = Array.isArray(item.tasks_json) ? item.tasks_json : [];
+      const criteria = Array.isArray(item.acceptance_criteria_json) ? item.acceptance_criteria_json : [];
       const expanded = state.expandedId === item.id;
+      const effortOpen = state.effortId === item.id;
       const voted = state.votedIds.has(item.id);
       const pending = state.pendingStatus && state.pendingStatus.id === item.id ? state.pendingStatus : null;
       const pendingFb = state.pendingDecFeedback && state.pendingDecFeedback.id === item.id ? state.pendingDecFeedback : null;
@@ -433,6 +429,9 @@ async function loadIdeas() {
       const totalSec = Number(item.total_duration_seconds) || 0;
       const timedCnt = Number(item.timed_mentions) || 0;
       const avgSec = timedCnt > 0 ? Math.round(totalSec / timedCnt) : 0;
+      const refs = Array.isArray(item.interaction_refs_json) ? item.interaction_refs_json : [];
+      const cutoff90d = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const recentRefs = refs.filter((r) => !r.createdAt || new Date(r.createdAt).getTime() >= cutoff90d);
 
       const pressureBadge = hasPressure
         ? `<span class="tag-mini tag-pressure">${postMentions > 0 ? `+${postMentions}× nach Ablehnung` : 'Neu prüfen'}</span>`
@@ -441,6 +440,22 @@ async function loadIdeas() {
       const timeChip =
         totalSec > 0
           ? `<span class="time-chip" title="Echt erfasste Gesprächs-/Taskdauer aus ${timedCnt} Fällen">⏱ ${esc(fmtDurationHuman(totalSec))}${avgSec > 0 ? ` · Ø ${esc(fmtMMSS(avgSec))}` : ''}</span>`
+          : '';
+
+      const loopFollowupChip =
+        item.status === 'Umgesetzt' && recentRefs.length > 0
+          ? `<span class="tag-mini tag-green" title="Innerhalb von 90 Tagen umgesetzt — aktive Rückmeldung an diese Ref-IDs sinnvoll">Rückmeldung sinnvoll (${recentRefs.length} Ref.)</span>`
+          : '';
+
+      const refsLine =
+        refs.length > 0
+          ? `<div class="idea-meta-line" style="margin-top:5px;">
+              ${refs
+                .slice(-5)
+                .map((r) => `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(r.ref)}</span>`)
+                .join('')}
+              ${refs.length > 5 ? `<span style="color:var(--silver-3);">+${refs.length - 5} weitere</span>` : ''}
+            </div>`
           : '';
 
       const decisionVoteHtml = hasDecision
@@ -496,22 +511,24 @@ async function loadIdeas() {
         ${decisionVoteHtml}
       `;
 
+      const effortBarHtml = effortOpen
+        ? `
+          <form class="quant-box js-quant-form" data-id="${item.id}" style="margin-top:10px;">
+            <div class="qty-stepper" title="Anzahl Meldungen">
+              <button type="button" class="qty-btn js-qty-step" data-step="-1" aria-label="Weniger">−</button>
+              <input type="number" name="delta" class="qty-input" min="1" max="1000" value="1" aria-label="Anzahl Meldungen" />
+              <button type="button" class="qty-btn js-qty-step" data-step="1" aria-label="Mehr">+</button>
+            </div>
+            ${renderDurationPickerHtml({ initialSec: 0, placeholder: 'Zeit' })}
+            <input type="text" name="interactionRef" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" style="width:104px;" />
+            <button type="submit" class="btn-primary js-quant-submit">Erfassen</button>
+          </form>
+        `
+        : '';
+
       const drawerHtml = expanded
         ? `
           <div class="idea-drawer">
-            <form class="quant-box js-quant-form" data-id="${item.id}">
-              <span class="drawer-label" style="margin:0;">Meldungen &amp; Dauer</span>
-              <div class="qty-stepper">
-                <button type="button" class="qty-btn js-qty-step" data-step="-1" aria-label="Weniger">−</button>
-                <input type="number" name="delta" class="qty-input" min="1" max="1000" value="1" aria-label="Anzahl Meldungen" />
-                <button type="button" class="qty-btn js-qty-step" data-step="1" aria-label="Mehr">+</button>
-              </div>
-              <button type="button" class="feas-btn js-qty-set" data-val="5">5×</button>
-              <button type="button" class="feas-btn js-qty-set" data-val="10">10×</button>
-              ${renderDurationPickerHtml({ initialSec: avgSec, placeholder: 'M:S / Fall' })}
-              <button type="submit" class="btn-primary js-quant-submit">Buchen</button>
-            </form>
-
             <div class="drawer-row">
               <div class="feas-group">
                 <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
@@ -527,30 +544,43 @@ async function loadIdeas() {
             </div>
 
             <form class="decision-form js-notes" data-id="${item.id}">
-              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Entwickler-Notiz (intern)…" />
+              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Fachnotiz (intern)…" />
               <div style="display:flex; justify-content:flex-end;">
                 <button type="submit" class="st-btn active">Notiz sichern</button>
               </div>
             </form>
 
             <div class="story-box">
-              <div class="drawer-label">User Story &amp; Tasks</div>
+              <div class="spec-meta">
+                <span class="tag-mini tag-blue">${esc(item.req_type || 'FA: Funktionale Anforderung')}</span>
+                <span class="tag-mini">MoSCoW: ${esc(item.moscow || 'Could')}</span>
+              </div>
+              <div class="drawer-label">User Story</div>
               <p class="story-line">${esc(item.user_story)}</p>
-              <ul class="task-list">
-                ${tasks
-                  .map(
-                    (t) => `
-                    <li class="${t.done ? 'done' : ''}">
-                      <input type="checkbox" class="js-task" data-story-id="${item.id}" data-task-id="${esc(t.id)}" ${t.done ? 'checked' : ''} />
-                      <span>${esc(t.title)}</span>
-                    </li>`
-                  )
-                  .join('')}
-              </ul>
+              ${
+                criteria.length > 0
+                  ? `
+                    <div class="drawer-label" style="margin-top:10px;">Akzeptanzkriterien (Gegeben / Wenn / Dann)</div>
+                    <ol class="ac-list">
+                      ${criteria.map((c) => `<li>${esc(c)}</li>`).join('')}
+                    </ol>
+                  `
+                  : ''
+              }
+              ${
+                tasks.length > 0
+                  ? `
+                    <div class="drawer-label" style="margin-top:10px;">Teilanforderungen</div>
+                    <ol class="ac-list">
+                      ${tasks.map((t) => `<li>${esc(t.title)}</li>`).join('')}
+                    </ol>
+                  `
+                  : ''
+              }
             </div>
 
             <div>
-              <div class="drawer-label">Status &amp; Kunden-Wording</div>
+              <div class="drawer-label">Status &amp; Begründung</div>
               <div class="feas-group">
                 <button type="button" class="st-btn js-pick ${pending?.status === 'Geprüft' ? 'active' : ''}" data-id="${item.id}" data-status="Geprüft">Geprüft</button>
                 <button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">In Arbeit</button>
@@ -561,8 +591,8 @@ async function loadIdeas() {
                 pending
                   ? `
                     <form class="decision-form js-decide" data-id="${item.id}" data-status="${esc(pending.status)}" style="margin-top:10px;">
-                      <textarea name="publicResponse" rows="2" required placeholder="Kunden-Wording (E-Mail / Telefon)">${esc(WORDING_TEMPLATES[pending.status] || '')}</textarea>
-                      <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Interne Begründung (optional)" />
+                      <textarea name="publicResponse" rows="2" required placeholder="Begründung / Rückmeldung zum Entscheid…"></textarea>
+                      <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Interne Fachnotiz (optional)" />
                       <div><button type="submit" class="btn-primary">Speichern</button></div>
                     </form>
                   `
@@ -587,7 +617,7 @@ async function loadIdeas() {
                   ${item.jira_key ? `<a class="tag-mini tag-blue" href="${esc(item.jira_url || '#')}" target="_blank" rel="noopener" style="text-decoration:none;">${esc(item.jira_key)}</a>` : ''}
                   ${pressureBadge}
                   ${ampelDot(feas)}
-                  <span>${esc(channel)}</span>
+                  ${channel ? `<span>${esc(channel)}</span>` : ''}
                   ${statusBadge(item.status)}
                 </div>
               </div>
@@ -595,7 +625,11 @@ async function loadIdeas() {
               <div class="idea-meta-line">
                 <span>${esc(dateStr)}${esc(author)}</span>
                 ${timeChip}
+                ${loopFollowupChip}
+                <button type="button" class="text-link js-effort-toggle" data-id="${item.id}">${effortOpen ? 'Schliessen' : '+ Aufwand erfassen'}</button>
               </div>
+              ${effortBarHtml}
+              ${refsLine}
               ${loopBars(item.status)}
               ${notesHtml}
             </div>
@@ -616,7 +650,7 @@ async function loadIdeas() {
       const qty = Math.max(1, Math.min(1000, parseInt(qtyInput.value, 10) || 1));
       const perSec = Number(picker?.dataset.sec || 0);
       const total = qty * perSec;
-      submitBtn.textContent = total > 0 ? `+${qty}× (${fmtDurationHuman(total)})` : `+${qty}× buchen`;
+      submitBtn.textContent = total > 0 ? `+${qty}× · ${fmtDurationHuman(total)}` : qty > 1 ? `+${qty}× erfassen` : 'Erfassen';
     }
 
     bindDurationPicker(picker, syncSubmitLabel);
@@ -629,34 +663,28 @@ async function loadIdeas() {
         syncSubmitLabel();
       });
     });
-    formEl.querySelectorAll('.js-qty-set').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        qtyInput.value = btn.dataset.val;
-        syncSubmitLabel();
-      });
-    });
     syncSubmitLabel();
   });
 }
 
 // --- Management-Report mit SVG-Grafiken (ONESTRAND Dark + A4 Print-Safe) ---
-function buildDonutSvg({ einfach, mittel, aufwaendig }) {
-  const total = einfach + mittel + aufwaendig;
+function buildDonutSvg({ einfach = 0, mittel = 0, aufwaendig = 0, unbewertet = 0 }) {
+  const total = einfach + mittel + aufwaendig + unbewertet;
   const r = 46;
   const c = 2 * Math.PI * r;
   if (total === 0) {
     return `
       <svg width="124" height="124" viewBox="0 0 124 124" aria-label="Ampel-Verteilung">
-        <circle class="svg-track" cx="62" cy="62" r="${r}" fill="none" stroke="rgba(206,214,228,0.16)" stroke-width="14"/>
-        <text class="svg-muted" x="62" y="66" text-anchor="middle" font-size="14" font-weight="700" fill="#9aa1ac">0</text>
+        <circle cx="62" cy="62" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="14"/>
+        <text x="62" y="66" text-anchor="middle" font-size="14" font-weight="700" fill="#64748b">0</text>
       </svg>
     `;
   }
   const segs = [
     { val: einfach, color: '#22c55e' },
     { val: mittel, color: '#f59e0b' },
-    { val: aufwaendig, color: '#ef4444' }
+    { val: aufwaendig, color: '#ef4444' },
+    { val: unbewertet, color: '#94a3b8' }
   ];
   let offset = 0;
   const circles = segs
@@ -671,10 +699,10 @@ function buildDonutSvg({ einfach, mittel, aufwaendig }) {
 
   return `
     <svg width="124" height="124" viewBox="0 0 124 124" aria-label="Ampel-Verteilung">
-      <circle class="svg-track" cx="62" cy="62" r="${r}" fill="none" stroke="rgba(206,214,228,0.12)" stroke-width="14"/>
+      <circle cx="62" cy="62" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
       ${circles}
-      <text class="svg-ink" x="62" y="61" text-anchor="middle" font-size="20" font-weight="700" fill="#f4f6f9">${total}</text>
-      <text class="svg-muted" x="62" y="76" text-anchor="middle" font-size="10" fill="#9aa1ac">Themen</text>
+      <text x="62" y="61" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">${total}</text>
+      <text x="62" y="76" text-anchor="middle" font-size="10" fill="#64748b">Themen</text>
     </svg>
   `;
 }
@@ -708,8 +736,8 @@ function buildTimelineSvg(timeline = [], granularity = 'month') {
       const durHint = Number(m.duration_seconds) > 0 ? ` · ${fmtDurationHuman(m.duration_seconds)}` : '';
       return `
         <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh}" rx="5" fill="url(#osBarGrad)"/>
-        <text class="svg-ink" x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="#f4f6f9">${m.total}×${esc(durHint)}</text>
-        <text class="svg-muted" x="${(x + barW / 2).toFixed(1)}" y="${h - 8}" text-anchor="middle" font-size="9.5" fill="#9aa1ac">${esc(lbl)}</text>
+        <text x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="#0f172a">${m.total}×${esc(durHint)}</text>
+        <text x="${(x + barW / 2).toFixed(1)}" y="${h - 8}" text-anchor="middle" font-size="9.5" fill="#64748b">${esc(lbl)}</text>
       `;
     })
     .join('');
@@ -718,11 +746,11 @@ function buildTimelineSvg(timeline = [], granularity = 'month') {
     <svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:160px; display:block;" aria-label="Verlauf Meldungen">
       <defs>
         <linearGradient id="osBarGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#5aa2ff"/>
+          <stop offset="0%" stop-color="#2f84ff"/>
           <stop offset="100%" stop-color="#0a6cff"/>
         </linearGradient>
       </defs>
-      <line class="svg-track" x1="${padL}" y1="${h - padB}" x2="${w - padL}" y2="${h - padB}" stroke="rgba(206,214,228,0.18)" stroke-width="1"/>
+      <line x1="${padL}" y1="${h - padB}" x2="${w - padL}" y2="${h - padB}" stroke="#e2e8f0" stroke-width="1"/>
       ${bars}
     </svg>
   `;
@@ -820,8 +848,8 @@ async function loadReport() {
                   ${s.internal_note ? `<div style="color:var(--amber); font-size:0.75rem;">Dev: ${esc(s.internal_note)}</div>` : ''}
                 </td>
                 <td>${esc(s.submitted_by || '–')}</td>
-                <td>${esc(s.channel || 'E-Mail')}</td>
-                <td>${ampelDot(s.feasibility)} ${esc(s.feasibility || 'mittel')}</td>
+                <td>${esc(s.channel || '–')}</td>
+                <td>${ampelDot(s.feasibility)} ${esc(s.feasibility || 'unbewertet')}</td>
                 <td>${esc(s.status)}</td>
                 <td style="white-space:nowrap;"><strong>${s.report_mentions}×</strong> · ${esc(durText)}${avgText}</td>
               </tr>
@@ -857,8 +885,8 @@ async function loadReport() {
   const effortSub =
     timeMode === 'measured'
       ? rep.summary.totalTimedMentions > 0
-        ? `100 % echt erfasst (${rep.summary.totalTimedMentions} von ${rep.summary.totalMentions} Fällen)`
-        : 'Noch keine M:S-Dauern erfasst'
+        ? `Echt erfasst (${rep.summary.totalTimedMentions} von ${rep.summary.totalMentions})`
+        : 'Noch keine Zeiten erfasst'
       : `Hochrechnung (~ ≈ ${rep.summary.totalWorkdays} Arbeitstage)`;
 
   document.getElementById('report-sheet').innerHTML = `
@@ -871,7 +899,7 @@ async function loadReport() {
         <h1>Management-Report</h1>
         <div class="rep-sub">
           Zeitraum: <strong>${esc(fmtDateCH(from))} – ${esc(fmtDateCH(to))}</strong>
-          · Ampel: ${esc(feasibility)} · Status: ${esc(status)} · Basis: ${timeMode === 'measured' ? 'Echt erfasst (M:S)' : 'Hochrechnung (~)'}
+          · Ampel: ${esc(feasibility)} · Status: ${esc(status)} · Basis: ${timeMode === 'measured' ? 'Echt erfasst' : 'Hochrechnung (~)'}
         </div>
       </div>
       <div class="rep-sub">Erstellt am ${esc(fmtDateCH(rep.generatedAt))}</div>
@@ -888,7 +916,7 @@ async function loadReport() {
       <div class="rep-kpi">
         <span class="rep-kpi-label">Anfragen Total</span>
         <span class="rep-kpi-val">${rep.summary.totalMentions}×</span>
-        <span class="rep-kpi-sub">${rep.summary.totalTimedMentions}× mit M:S-Zeiterfassung</span>
+        <span class="rep-kpi-sub">${rep.summary.totalTimedMentions}× mit Zeitaufwand</span>
       </div>
       <div class="rep-kpi">
         <span class="rep-kpi-label">Ressourcen-Aufwand</span>
@@ -911,6 +939,7 @@ async function loadReport() {
             <div class="donut-legend-row"><span><span class="dot-sm dot-green"></span> Einfach</span><strong>${rep.byFeasibility.einfach}</strong></div>
             <div class="donut-legend-row"><span><span class="dot-sm dot-amber"></span> Mittel</span><strong>${rep.byFeasibility.mittel}</strong></div>
             <div class="donut-legend-row"><span><span class="dot-sm dot-red"></span> Aufwändig</span><strong>${rep.byFeasibility.aufwaendig}</strong></div>
+            ${rep.byFeasibility.unbewertet > 0 ? `<div class="donut-legend-row"><span><span class="dot-sm dot-open"></span> Unbewertet</span><strong>${rep.byFeasibility.unbewertet}</strong></div>` : ''}
           </div>
         </div>
       </div>
@@ -958,12 +987,10 @@ async function handleSubmit(ev) {
   ev.preventDefault();
   const textarea = document.getElementById('fb-text');
   const authorInput = document.getElementById('fb-author');
+  const refInput = document.getElementById('fb-ref');
   const dupBanner = document.getElementById('dup-banner');
   const author = authorInput.value.trim();
-
-  if (author) {
-    localStorage.setItem('re_author', author);
-  }
+  const interactionRef = refInput.value.trim();
 
   try {
     const res = await api('/api/stories', {
@@ -972,12 +999,16 @@ async function handleSubmit(ev) {
         rawFeedback: textarea.value.trim(),
         channel: state.channel,
         submittedBy: author,
+        interactionRef,
         durationSeconds: state.composerDurationSec,
-        origin: state.channel === 'Intern / Team' ? 'betrieb' : 'kunde'
+        origin: 'kunde'
       })
     });
 
     textarea.value = '';
+    refInput.value = '';
+    state.channel = '';
+    document.querySelectorAll('.ch-btn').forEach((b) => b.classList.remove('active'));
     state.composerDurationSec = 0;
     const compPicker = document.getElementById('composer-dur-picker');
     if (compPicker?._setSeconds) compPicker._setSeconds(0, { syncText: true, syncWheel: false });
@@ -1006,15 +1037,15 @@ function init() {
     document.body.classList.add('embed-mode');
   }
 
-  // Composer M:S + Wheel-Picker einhängen
+  // Composer Zeit- & Wheel-Picker einhängen
   const durSlot = document.getElementById('composer-dur-slot');
-  durSlot.innerHTML = renderDurationPickerHtml({ idAttr: 'composer-dur-picker', initialSec: 0, placeholder: 'M:S' });
+  durSlot.innerHTML = renderDurationPickerHtml({ idAttr: 'composer-dur-picker', initialSec: 0, placeholder: 'Zeit' });
   bindDurationPicker(document.getElementById('composer-dur-picker'), (sec) => {
     state.composerDurationSec = sec;
   });
 
-  const savedAuthor = localStorage.getItem('re_author') || '';
-  document.getElementById('fb-author').value = savedAuthor;
+  // Keine vorausgefüllten Felder beim Start
+  document.getElementById('fb-author').value = '';
 
   document.getElementById('rep-from').value = state.report.from;
   document.getElementById('rep-to').value = state.report.to;
@@ -1132,8 +1163,9 @@ function init() {
 
   document.querySelectorAll('.ch-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.channel = btn.dataset.channel;
-      document.querySelectorAll('.ch-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      const next = state.channel === btn.dataset.channel ? '' : btn.dataset.channel;
+      state.channel = next;
+      document.querySelectorAll('.ch-btn').forEach((b) => b.classList.toggle('active', b.dataset.channel === next));
     });
   });
 
@@ -1168,7 +1200,16 @@ function init() {
   });
 
   document.getElementById('ideas-list').addEventListener('click', async (ev) => {
-    if (ev.target.closest('.dur-picker') || ev.target.closest('.qty-stepper')) return;
+    if (ev.target.closest('.dur-picker') || ev.target.closest('.qty-stepper') || ev.target.closest('.js-quant-form')) return;
+
+    const effortToggle = ev.target.closest('.js-effort-toggle');
+    if (effortToggle) {
+      ev.stopPropagation();
+      const id = Number(effortToggle.dataset.id);
+      state.effortId = state.effortId === id ? null : id;
+      await loadIdeas();
+      return;
+    }
 
     const copyBtn = ev.target.closest('.js-copy');
     if (copyBtn) {
@@ -1260,9 +1301,10 @@ function init() {
 
     const feasBtn = ev.target.closest('.js-feas');
     if (feasBtn) {
+      const isAlreadyActive = feasBtn.classList.contains(`active-${feasBtn.dataset.feas}`);
       await api(`/api/stories/${feasBtn.dataset.id}/feasibility`, {
         method: 'PATCH',
-        body: JSON.stringify({ feasibility: feasBtn.dataset.feas })
+        body: JSON.stringify({ feasibility: isAlreadyActive ? 'unbewertet' : feasBtn.dataset.feas })
       });
       await loadIdeas();
       return;
@@ -1284,13 +1326,6 @@ function init() {
     }
   });
 
-  document.getElementById('ideas-list').addEventListener('change', async (ev) => {
-    const cb = ev.target.closest('.js-task');
-    if (!cb) return;
-    await api(`/api/stories/${cb.dataset.storyId}/tasks/${cb.dataset.taskId}`, { method: 'PATCH' });
-    await loadIdeas();
-  });
-
   document.getElementById('ideas-list').addEventListener('submit', async (ev) => {
     const quantForm = ev.target.closest('.js-quant-form');
     if (quantForm) {
@@ -1299,17 +1334,20 @@ function init() {
       const delta = Math.max(1, Math.min(1000, parseInt(quantForm.querySelector('input[name="delta"]').value, 10) || 1));
       const picker = quantForm.querySelector('[data-dur-picker]');
       const durInput = picker?.querySelector('.dur-input');
+      const refVal = (quantForm.querySelector('input[name="interactionRef"]')?.value || '').trim();
       const durationSeconds = durInput && durInput.value.trim() ? parseMMSS(durInput.value) : Number(picker?.dataset.sec || 0);
       await api(`/api/stories/${id}/vote`, {
         method: 'POST',
         body: JSON.stringify({
           delta,
           durationSeconds,
-          recordedBy: localStorage.getItem('re_author') || ''
+          interactionRef: refVal,
+          recordedBy: document.getElementById('fb-author')?.value.trim() || ''
         })
       });
       const totalAdded = delta * durationSeconds;
-      showToast(totalAdded > 0 ? `+${delta}× (${fmtDurationHuman(totalAdded)}) gebucht.` : `+${delta}× gebucht.`);
+      state.effortId = null;
+      showToast(totalAdded > 0 ? `+${delta}× (${fmtDurationHuman(totalAdded)}) erfasst.` : `+${delta}× erfasst.`);
       await Promise.all([loadIdeas(), loadHealth()]);
       return;
     }

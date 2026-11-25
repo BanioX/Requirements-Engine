@@ -22,23 +22,23 @@ export function buildJiraWikiMarkup(story, issueType = 'Story') {
     `{quote}${story.user_story}{quote}`,
     '',
     'h3. Ausgangslage & Mengen-Nachweis',
+    `* *Anforderungstyp:* ${story.req_type || 'FA: Funktionale Anforderung'}`,
     `* *Eingegangene Meldungen:* ${story.votes || 1}x${postMentions > 0 ? ` (+${postMentions}x nach Ablehnung)` : ''}`,
-    `* *Kanal:* ${story.channel || 'E-Mail'}`,
-    `* *Machbarkeit (Ampel):* ${story.feasibility || 'mittel'}`,
+    story.channel ? `* *Kanal:* ${story.channel}` : '',
+    `* *Machbarkeit (Ampel):* ${story.feasibility || 'unbewertet'}`,
     story.submitted_by ? `* *Idee / Vorschlag von:* ${story.submitted_by}` : '',
-    story.internal_note ? `* *Systemlogik / Dev-Notiz:* ${story.internal_note}` : '',
+    story.internal_note ? `* *Systemlogik / Fachnotiz:* ${story.internal_note}` : '',
     '',
     'h3. Ursprüngliches Feedback',
     story.raw_feedback,
+    tasks.length > 0 ? '\nh3. Teilanforderungen' : '',
+    ...tasks.map((t) => `* ${t.title}`),
     '',
-    'h3. Umsetzungsschritte',
-    ...tasks.map((t) => `* (${t.done ? '/' : ' '}) ${t.title} _(${t.estimateHours} h)_`),
-    '',
-    'h3. Akzeptanzkriterien',
+    'h3. Akzeptanzkriterien (Gegeben / Wenn / Dann)',
     ...criteria.map((c) => `# ${c}`),
-    story.public_response ? `\nh3. Geplantes Kunden-Wording\n${story.public_response}` : ''
+    story.public_response ? `\nh3. Rückmeldung / Entscheid\n${story.public_response}` : ''
   ]
-    .filter((line) => line !== null && line !== undefined)
+    .filter((line) => line !== null && line !== undefined && line !== '')
     .join('\n')
     .trim();
 }

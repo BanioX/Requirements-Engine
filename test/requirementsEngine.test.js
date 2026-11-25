@@ -7,20 +7,21 @@ import {
   scoreAndPrioritize
 } from '../src/engine/requirementsEngine.js';
 
-test('übersetzt eBanking-Kundenärger sauber in User Story, Tasks und Akzeptanzkriterien', () => {
+test('übersetzt Kundenärger nach RE-Lehrbuch in User Story, Teilanforderungen und Akzeptanzkriterien', () => {
   const result = analyzeFeedback({
     rawFeedback:
-      'Kunden im Mobile Banking beschweren sich dauernd, dass nach 3 falschen PIN-Eingaben keine klare Meldung erscheint sowie kein Reset-Hinweis da ist, weil sie sonst 15 Minuten in der Hotline warten müssen.',
-    sourceRole: 'Mobile-Banking-Kundschaft',
+      'Nach 3 falschen PIN-Eingaben erscheint keine klare Meldung sowie kein Reset-Hinweis, weil man sonst 15 Minuten warten muss.',
+    sourceRole: 'Kundschaft',
     feedbackType: 'kunden_aerger',
     urgency: 'kritisch'
   });
 
-  assert.match(result.userStory, /^Als Mobile-Banking-Kundschaft möchte ich .+, damit .+\.$/);
+  assert.match(result.userStory, /^Als Kundschaft möchte ich .+, damit .+\.$/);
   assert.equal(result.moscow, 'Must');
-  assert.equal(result.reqType, 'NFA: Sicherheit & Compliance');
-  assert.ok(result.tasks.length >= 3, 'Mindestens 3 Tasks sollten geschnitten werden');
-  assert.ok(result.acceptanceCriteria.length >= 3, 'Akzeptanzkriterien sollten erzeugt werden');
+  assert.equal(result.reqType, 'NFA: Sicherheit & Schutz');
+  assert.equal(result.feasibility, 'unbewertet');
+  assert.ok(result.tasks.length >= 2, 'Aufzählung sollte in Teilanforderungen zerlegt werden');
+  assert.ok(result.acceptanceCriteria.length >= 3, 'Akzeptanzkriterien (Gegeben/Wenn/Dann) sollten erzeugt werden');
   assert.ok(result.priorityScore >= 80);
 });
 
@@ -31,14 +32,14 @@ test('lehnt zu kurzes Feedback sauber ab', () => {
   );
 });
 
-test('klassifiziert Usability- und Performance-Anforderungen korrekt', () => {
+test('klassifiziert Usability- und Performance-Anforderungen nach IREB korrekt', () => {
   assert.equal(
     classifyRequirementType('Die Suche ist extrem langsam und verursacht oft einen Timeout.'),
-    'NFA: Performance & Zuverlässigkeit'
+    'NFA: Effizienz & Zeitverhalten'
   );
   assert.equal(
-    classifyRequirementType('Die Fehlermeldung ist völlig unklar und verwirrend in der Mobile-Ansicht.'),
-    'NFA: Usability & Kundenerlebnis'
+    classifyRequirementType('Die Fehlermeldung ist völlig unklar und verwirrend.'),
+    'NFA: Benutzbarkeit (Usability)'
   );
 });
 
@@ -46,15 +47,15 @@ test('Duplikat-Radar erkennt ähnliche Anforderungen zuverlässig', () => {
   const existing = [
     {
       id: 12,
-      title: 'PDF-Export für eBanking Jahresauszug vereinfachen',
-      raw_feedback: 'Kunden finden den PDF-Export für den Jahresauszug im eBanking nicht.',
-      user_story: 'Als Kunde möchte ich den PDF-Export im eBanking schneller finden.',
+      title: 'PDF-Export für Jahresauszug vereinfachen',
+      raw_feedback: 'Kunden finden den PDF-Export für den Jahresauszug nicht.',
+      user_story: 'Als Kunde möchte ich den PDF-Export schneller finden.',
       status: 'Bereit'
     }
   ];
 
   const duplicates = findPotentialDuplicates(
-    'Im eBanking suchen viele Kunden den PDF-Export für ihren Jahresauszug vergeblich.',
+    'Viele Kunden suchen den PDF-Export für ihren Jahresauszug vergeblich.',
     existing
   );
 
@@ -70,17 +71,18 @@ test('Team-Votes erhöhen den Prioritäts-Score automatisch', () => {
   assert.ok(voted.score > base.score);
 });
 
-test('erkennt Rolle, Kategorie und Dringlichkeit automatisch ohne Dropdown-Auswahl', () => {
+test('bleibt branchenneutral ohne branchenspezifische Unterstellungen', () => {
   const result = analyzeFeedback({
-    rawFeedback: 'Nach 3 falschen Login-Versuchen bricht der Zugang sofort ab und Kunden beschweren sich dauernd bei der Hotline.',
+    rawFeedback: 'Nach 3 falschen Versuchen bricht der Ablauf sofort ab und Kunden beschweren sich dauernd.',
     origin: 'betrieb'
   });
 
   assert.equal(result.origin, 'betrieb');
-  assert.equal(result.sourceRole, 'Support & Betrieb');
+  assert.equal(result.sourceRole, 'Team / Betrieb');
   assert.equal(result.feedbackType, 'kunden_aerger');
   assert.equal(result.urgency, 'kritisch');
   assert.equal(result.moscow, 'Must');
+  assert.equal(result.tasks.length, 0, 'Einzelanforderung erzeugt keine erfundenen Checklisten-Tasks');
 });
 
 test('Machbarkeit «einfach» + Nutzen-Votes stufen Idee automatisch als Quick Win ein', () => {

@@ -92,9 +92,9 @@ export async function initDatabase(pool) {
     );
 
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'kunde';
-    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'E-Mail';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS submitted_by TEXT NOT NULL DEFAULT '';
-    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'mittel';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'unbewertet';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS public_response TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
@@ -106,6 +106,7 @@ export async function initDatabase(pool) {
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS jira_url TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS total_duration_seconds INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS timed_mentions INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS interaction_refs_json JSONB NOT NULL DEFAULT '[]'::jsonb;
 
     UPDATE feedback_stories
     SET decided_at = updated_at
@@ -117,10 +118,12 @@ export async function initDatabase(pool) {
       delta INTEGER NOT NULL DEFAULT 1,
       recorded_by TEXT NOT NULL DEFAULT '',
       duration_seconds INTEGER NOT NULL DEFAULT 0,
+      interaction_ref TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS interaction_ref TEXT NOT NULL DEFAULT '';
 
     -- Historische Meldungen sauber angleichen, falls Einträge vor story_mentions gezählt wurden
     INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, created_at)
@@ -354,17 +357,21 @@ export function createPostgresStore(pool) {
     async createStory(payload) {
       const safeDur = Math.max(0, Math.min(28800, Math.round(Number(payload.durationSeconds) || 0)));
       const timed = safeDur > 0 ? 1 : 0;
+      const safeRef = typeof payload.interactionRef === 'string' ? payload.interactionRef.trim().slice(0, 64) : '';
+      const initialRefs = safeRef
+        ? [{ ref: safeRef, channel: payload.channel || '', createdAt: new Date().toISOString() }]
+        : [];
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,'Eingang',$20)
+         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, interaction_refs_json, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,'Eingang',$21)
          RETURNING *`,
         [
           payload.processId || null,
           payload.origin || 'kunde',
-          payload.channel || 'E-Mail',
+          payload.channel ?? '',
           payload.submittedBy || '',
-          payload.feasibility || 'mittel',
+          payload.feasibility || 'unbewertet',
           payload.sourceRole,
           payload.feedbackType,
           payload.urgency,
@@ -377,6 +384,7 @@ export function createPostgresStore(pool) {
           payload.priorityScore,
           safeDur,
           timed,
+          JSON.stringify(initialRefs),
           JSON.stringify(payload.tasks),
           JSON.stringify(payload.acceptanceCriteria),
           payload.dueDate || null
@@ -384,8 +392,8 @@ export function createPostgresStore(pool) {
       );
       const created = res.rows[0];
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds) VALUES ($1, 1, $2, $3)`,
-        [created.id, created.submitted_by || '', safeDur]
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref) VALUES ($1, 1, $2, $3, $4)`,
+        [created.id, created.submitted_by || '', safeDur, safeRef]
       );
       await pool.query(
         `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
@@ -393,7 +401,7 @@ export function createPostgresStore(pool) {
         [
           created.id,
           created.title,
-          `Eingegangen via ${created.channel}${created.submitted_by ? ` (Idee: ${created.submitted_by})` : ''} — automatisch aufbereitet.`,
+          `Erfasst${created.channel ? ` via ${created.channel}` : ''}${safeRef ? ` [${safeRef}]` : ''}${created.submitted_by ? ` (${created.submitted_by})` : ''}.`,
           created.submitted_by || created.source_role
         ]
       );
@@ -410,11 +418,22 @@ export function createPostgresStore(pool) {
       return true;
     },
 
-    async upvoteStory(id, recalculated, delta = 1, recordedBy = '', durationSecondsPerItem = 0) {
+    async upvoteStory(id, recalculated, delta = 1, recordedBy = '', durationSecondsPerItem = 0, interactionRef = '') {
       const safeDelta = Math.max(1, Math.min(1000, Math.round(Number(delta) || 1)));
       const safePerItem = Math.max(0, Math.min(28800, Math.round(Number(durationSecondsPerItem) || 0)));
+      const safeRef = typeof interactionRef === 'string' ? interactionRef.trim().slice(0, 64) : '';
       const addedDuration = safePerItem * safeDelta;
       const addedTimed = safePerItem > 0 ? safeDelta : 0;
+
+      const existing = await pool.query(`SELECT interaction_refs_json FROM feedback_stories WHERE id = $1`, [id]);
+      if (existing.rowCount === 0) return null;
+      const prevRefs = Array.isArray(existing.rows[0].interaction_refs_json)
+        ? existing.rows[0].interaction_refs_json
+        : [];
+      const nextRefs = safeRef
+        ? [...prevRefs.slice(-49), { ref: safeRef, createdAt: new Date().toISOString() }]
+        : prevRefs;
+
       const res = await pool.query(
         `UPDATE feedback_stories
          SET votes = votes + $4,
@@ -424,17 +443,18 @@ export function createPostgresStore(pool) {
              END,
              total_duration_seconds = total_duration_seconds + $5,
              timed_mentions = timed_mentions + $6,
+             interaction_refs_json = $7::jsonb,
              priority_score = $1,
              moscow = $2,
              size_estimate = $3,
              updated_at = NOW()
-         WHERE id = $7 RETURNING *`,
-        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, addedDuration, addedTimed, id]
+         WHERE id = $8 RETURNING *`,
+        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, addedDuration, addedTimed, JSON.stringify(nextRefs), id]
       );
       if (res.rowCount === 0) return null;
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds) VALUES ($1, $2, $3, $4)`,
-        [id, safeDelta, recordedBy || '', addedDuration]
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref) VALUES ($1, $2, $3, $4, $5)`,
+        [id, safeDelta, recordedBy || '', addedDuration, safeRef]
       );
       return {
         ...res.rows[0],

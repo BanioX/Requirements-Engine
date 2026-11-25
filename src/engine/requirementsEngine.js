@@ -1,11 +1,11 @@
 /**
- * Lokale, deterministische Requirements-Engine (100 % kostenlos, ohne externe KI-APIs).
- * Übersetzt formloses Feedback / Kundenärger / Ideen in:
+ * Lokale, deterministische Requirements-Engine nach Lehrbuch (IREB / Pohl & Rupp).
+ * 100 % kostenlos, branchenneutral, ohne externe KI-APIs und ohne vorausgefüllte Annahmen.
+ * Übersetzt Rohfeedback in:
+ * - Anforderungstyp (FA / NFA / Randbedingung)
  * - Strukturierte User Story ("Als ... möchte ich ..., damit ...")
- * - Geschnittene Tasks inkl. Aufwandschätzung
- * - Akzeptanzkriterien (Gegeben / Wenn / Dann)
- * - Anforderungstyp (FA / NFA), MoSCoW-Priorität, T-Shirt-Grösse & Score
- * - Duplikat-Radar gegen bestehende Einträge
+ * - Prüfbare Akzeptanzkriterien (Gegeben / Wenn / Dann)
+ * - MoSCoW-Priorisierung & Duplikat-Radar
  */
 
 const STOP_WORDS = new Set([
@@ -44,8 +44,7 @@ function capitalizeFirst(text) {
 
 function lowercaseFirst(text) {
   if (!text) return '';
-  // Abkürzungen wie PDF, TWINT, PIN, API, eBanking nicht kleinschreiben
-  if (/^[A-ZÄÖÜ]{2,}/.test(text) || /^eBanking/i.test(text)) {
+  if (/^[A-ZÄÖÜ]{2,}/.test(text)) {
     return text;
   }
   return text.charAt(0).toLowerCase() + text.slice(1);
@@ -62,29 +61,28 @@ export function extractKeywords(text) {
 }
 
 /**
- * Erkennt Anforderungstyp (Funktionale Anforderung vs. Nicht-funktionale Anforderung)
+ * Klassifiziert nach IREB-Lehrbuch:
+ * Funktionale Anforderung (FA), Qualitätsanforderung (NFA nach ISO 25010) oder Randbedingung.
  */
 export function classifyRequirementType(rawText, feedbackType = 'idee') {
-  const lower = rawText.toLowerCase();
-  if (/(passwort|pin|login|sicher|berechtigung|zugriff|zertifikat|verschlüssel|dsg|compliance|audit|2fa|sperr)/.test(lower) || feedbackType === 'compliance') {
-    return 'NFA: Sicherheit & Compliance';
+  const lower = String(rawText || '').toLowerCase();
+  if (/(gesetz|dsg|dsgvo|compliance|audit|richtlinie|vorschrift|pflicht|norm|regul)/.test(lower) || feedbackType === 'compliance') {
+    return 'Randbedingung: Recht & Vorgaben';
+  }
+  if (/(passwort|pin|login|sicher|berechtigung|zugriff|zertifikat|verschlüssel|schutz|2fa|sperr)/.test(lower)) {
+    return 'NFA: Sicherheit & Schutz';
   }
   if (/(langsam|dauer|minute|sekunde|wartezeit|performance|absturz|ausfall|verfügbar|stabil|timeout|hängt)/.test(lower)) {
-    return 'NFA: Performance & Zuverlässigkeit';
+    return 'NFA: Effizienz & Zeitverhalten';
   }
-  if (/(unklar|verwirr|verständ|bedien|klick|übersicht|findet nicht|kompliziert|mobile|fehlermeldung|design)/.test(lower)) {
-    return 'NFA: Usability & Kundenerlebnis';
+  if (/(unklar|verwirr|verständ|bedien|klick|übersicht|findet nicht|kompliziert|sprache|fehlermeldung|design)/.test(lower)) {
+    return 'NFA: Benutzbarkeit (Usability)';
   }
   return 'FA: Funktionale Anforderung';
 }
 
-/**
- * Zerlegt den Rohtext in Wunsch/Problem und Nutzen/Begründung
- */
 function splitGoalAndBenefit(rawText) {
   const cleaned = cleanWhitespace(rawText).replace(/[.!?]+$/, '');
-
-  // Klar unterscheiden: positiver Nutzen ("damit", "um ... zu") vs. Problem-Ursache ("weil", "sonst", "sodass", "weshalb")
   const patterns = [
     { kind: 'benefit', regex: /\s*,?\s*\bdamit\s+(.+)$/i },
     { kind: 'benefit', regex: /\s*,?\s*\bum\s+(.+?)\s+zu\s+([^\s,.;!?]+.*)$/i },
@@ -111,183 +109,102 @@ function splitGoalAndBenefit(rawText) {
   return { mainPart, benefitPart, partKind };
 }
 
-/**
- * Formuliert das Ziel für "möchte ich ..." aus formloser Umgangssprache
- */
 function normalizeGoalPhrase(mainPart, feedbackType) {
   let phrase = cleanWhitespace(mainPart);
-
-  // Häufige formlose Einleitungen entfernen
   phrase = phrase
-    .replace(/^(es nervt(,?\s*dass)?|kunden\s+(im\s+[^\s,]+\s+)?beschweren\s+sich(\s+dauernd)?(,?\s*dass)?|wir\s+brauchen(\s+dringend)?|ich\s+möchte|es\s+wäre\s+(gut|super|toll)(,?\s*wenn)?|es\s+fehlt(\s+ein|\s+eine)?|problem:?\s*|idee:?\s*)/i, '')
+    .replace(/^(es nervt(,?\s*dass)?|kunden\s+beschweren\s+sich(\s+dauernd)?(,?\s*dass)?|wir\s+brauchen(\s+dringend)?|ich\s+möchte|es\s+wäre\s+(gut|super|toll)(,?\s*wenn)?|es\s+fehlt(\s+ein|\s+eine)?|problem:?\s*|idee:?\s*)/i, '')
     .trim();
 
-  if (!phrase) {
-    phrase = cleanWhitespace(mainPart);
-  }
+  if (!phrase) phrase = cleanWhitespace(mainPart);
 
-  // Wenn das Problem als Negativ-Zustand beschrieben ist, lösungsorientiert rahmen
-  if (/(manuell|excel|dauernd|fehler|keine klare meldung|störung|ärger|beschwer|vergessen|kompliziert|absturz|warten)/i.test(phrase)) {
+  if (/(manuell|dauernd|fehler|keine klare meldung|störung|ärger|beschwer|vergessen|kompliziert|absturz|warten)/i.test(phrase)) {
     if (feedbackType === 'kunden_aerger') {
-      return `eine klare und geführte Lösung für das Problem «${phrase}» bereitstellen`;
+      return `eine klare Lösung für «${phrase}» erhalten`;
     }
-    return `den Ablauf «${phrase}» vereinfachen und automatisieren`;
+    return `den Ablauf «${phrase}» vereinfachen`;
   }
 
-  // Wenn es bereits wie eine Funktion klingt
   if (/^(einen?|eine|die|der|das|automatisch)/i.test(phrase)) {
     return `${lowercaseFirst(phrase)} nutzen können`;
   }
 
-  return `${lowercaseFirst(phrase)} zuverlässig umsetzen`;
+  return `${lowercaseFirst(phrase)} umsetzen können`;
 }
 
-/**
- * Formuliert den Nutzen für "damit ..."
- */
 function normalizeBenefitPhrase(benefitPart, partKind, feedbackType, reqType) {
   const cleaned = cleanWhitespace(benefitPart);
   if (cleaned) {
-    if (partKind === 'cause' || /(vergessen|ausfällt|ärger|beschwer|warten|verloren|schief|fehler|versteckt|anruf|ticket|support|hotline|doppelt|nachfragen)/.test(cleaned)) {
-      return `Rückfragen und Reibung spürbar sinken (bisherige Ursache: ${lowercaseFirst(cleaned)})`;
+    if (partKind === 'cause' || /(vergessen|ausfällt|ärger|beschwer|warten|verloren|schief|fehler|versteckt|anruf|rückfrage|doppelt|nachfragen)/.test(cleaned)) {
+      return `Rückfragen und Reibung sinken (Ausgangslage: ${lowercaseFirst(cleaned)})`;
     }
     return lowercaseFirst(cleaned);
   }
 
   if (feedbackType === 'kunden_aerger') {
-    return 'Kundenrückfragen sinken und das Erlebnis spürbar einfacher wird';
+    return 'wiederkehrende Rückfragen reduziert werden';
   }
-  if (feedbackType === 'compliance') {
-    return 'Fristen, Nachweise und Sicherheitsvorgaben lückenlos eingehalten werden';
+  if (reqType.startsWith('Randbedingung')) {
+    return 'Vorgaben und Nachweise verlässlich eingehalten werden';
   }
   if (reqType.includes('Usability')) {
-    return 'die Bedienung intuitiver wird und weniger Support-Aufwand entsteht';
+    return 'die Nutzung ohne unnötige Hürden gelingt';
   }
-  return 'wiederkehrende manuelle Arbeit reduziert und Servicequalität gesichert wird';
+  return 'der Bedarf effizient und nachvollziehbar erfüllt wird';
 }
 
 /**
- * Schneidet eine Idee automatisch in umsetzbare Tasks (Story-Slicing)
+ * Zerlegt nur dann in Teilanforderungen, wenn der Rohtext tatsächlich mehrere
+ * getrennte Teilpunkte aufzählt — keine erfundenen generischen Checklisten!
  */
-export function sliceIntoTasks(rawText, reqType) {
+export function sliceIntoTasks(rawText) {
   const cleaned = cleanWhitespace(rawText);
-  const lower = cleaned.toLowerCase();
-  const tasks = [];
-
-  // 1. Aufzählungen / zusammengesetzte Teile im Text erkennen
   const segments = cleaned
     .split(/\s*(?:;|•|\n|\bund\s+ausserdem\b|\bsowie\b|\bausserdem\b|\bzusätzlich\b)\s*/i)
     .map((s) => cleanWhitespace(s))
     .filter((s) => s.length >= 12);
 
-  if (segments.length > 1) {
-    segments.slice(0, 4).forEach((seg, idx) => {
-      const shortSeg = seg.length > 90 ? `${seg.slice(0, 87)}…` : seg;
-      tasks.push({
-        id: `task-${idx + 1}`,
-        title: `Teilbereich ${idx + 1} umsetzen: ${shortSeg}`,
-        estimateHours: 2,
-        done: false
-      });
-    });
-  } else {
-    tasks.push({
-      id: 'task-1',
-      title: 'Anforderung fachlich schärfen & Mockup/Ablauf mit Fachbereich abstimmen',
-      estimateHours: 1.5,
-      done: false
-    });
+  if (segments.length <= 1) {
+    return [];
   }
 
-  // 2. Domänenspezifische Tasks automatisch ergänzen
-  if (/(export|pdf|csv|excel|bericht|download|kalender|ics)/.test(lower)) {
-    tasks.push({
-      id: `task-${tasks.length + 1}`,
-      title: 'Export-Funktion & Ausgabeformat implementieren und Stichprobe prüfen',
-      estimateHours: 2.5,
-      done: false
-    });
-  }
-  if (/(meldung|benachrichtigung|erinnerung|frist|ampel|warnung|mail|hinweis)/.test(lower)) {
-    tasks.push({
-      id: `task-${tasks.length + 1}`,
-      title: 'Hinweistexte, Schwellenwerte und Benachrichtigungslogik konfigurieren',
-      estimateHours: 2,
-      done: false
-    });
-  }
-  if (/(pin|login|passwort|reset|sperr|berechtigung|2fa|sicher|zertifikat)/.test(lower)) {
-    tasks.push({
-      id: `task-${tasks.length + 1}`,
-      title: 'Sicherheits- und Missbrauchsprüfung (Fehlerfälle, Logging, Rechte) durchführen',
-      estimateHours: 3,
-      done: false
-    });
-  }
-  if (/(mobile|app|ebanking|button|maske|formular|klick|ui|anzeige)/.test(lower)) {
-    tasks.push({
-      id: `task-${tasks.length + 1}`,
-      title: 'Benutzeroberfläche (Desktop & Mobile) anpassen und Usability-Kurztest fahren',
-      estimateHours: 2.5,
-      done: false
-    });
-  }
-
-  // Mindestens 3 sinnvolle Tasks (Umsetzung + Abnahme/Doku) garantieren
-  if (tasks.length < 2) {
-    tasks.push({
-      id: `task-${tasks.length + 1}`,
-      title: `Kernfunktion (${reqType.split(':')[0]}) implementieren & Datenmodell erweitern`,
-      estimateHours: 3,
-      done: false
-    });
-  }
-
-  tasks.push({
-    id: `task-${tasks.length + 1}`,
-    title: 'Abnahmetest gemäss Akzeptanzkriterien durchführen & Klick-Anleitung aktualisieren',
-    estimateHours: 1.5,
+  return segments.slice(0, 5).map((seg, idx) => ({
+    id: `T${idx + 1}`,
+    title: seg.length > 100 ? `${seg.slice(0, 97)}…` : seg,
+    estimateHours: 0,
     done: false
-  });
-
-  // IDs sauber durchnummerieren (max. 6 Tasks)
-  return tasks.slice(0, 6).map((t, index) => ({
-    ...t,
-    id: `T${index + 1}`
   }));
 }
 
 /**
- * Generiert strukturierte Akzeptanzkriterien im Gherkin-Stil (Gegeben / Wenn / Dann)
+ * Prüfbare Akzeptanzkriterien nach Lehrbuch (Gegeben / Wenn / Dann) —
+ * strikt branchenneutral, ohne IT-spezifische oder branchenfremde Annahmen.
  */
 export function generateAcceptanceCriteria(rawText, role, reqType) {
-  const lower = rawText.toLowerCase();
-  const criteria = [];
+  const lower = String(rawText || '').toLowerCase();
+  const criteria = [
+    `Gegeben die Rolle «${role}», wenn der beschriebene Anwendungsfall eintritt, dann ist das erwartete Ergebnis reproduzierbar und ohne Umweg erreichbar.`
+  ];
 
-  criteria.push(
-    `Gegeben eine berechtigte Person aus dem Bereich «${role}», wenn der betroffene Ablauf ausgeführt wird, dann funktioniert die neue Lösung reproduzierbar ohne manuelle Workarounds.`
-  );
-
-  if (/(pin|login|passwort|sperr|fehlermeldung|reset)/.test(lower)) {
+  if (/(fehler|ungültig|sperr|abbruch|meldung|hinweis)/.test(lower)) {
     criteria.push(
-      'Gegeben eine fehlerhafte Eingabe oder gesperrte Sitzung, wenn der Fehlerfall eintritt, dann erscheint innert < 2 Sekunden eine verständliche Meldung mit klarem nächstem Lösungsschritt.'
+      'Gegeben ein Fehler- oder Ausnahmefall, wenn dieser ausgelöst wird, dann erscheint ein verständlicher Hinweis mit klarem nächstem Schritt.'
     );
-  } else if (/(export|pdf|csv|excel|kalender)/.test(lower)) {
+  } else if (/(export|bericht|liste|auszug|datei|dokument|druck)/.test(lower)) {
     criteria.push(
-      'Gegeben aktuelle Datensätze im System, wenn der Export ausgelöst wird, dann enthält die erzeugte Datei alle relevanten Felder vollständig, korrekt codiert (UTF-8) und ohne Datenverlust.'
+      'Gegeben relevante Einträge, wenn die Ausgabe erzeugt wird, dann sind alle benötigten Angaben vollständig und korrekt dargestellt.'
     );
-  } else if (/(frist|zertifikat|review|erinnerung|ablauf|wartung)/.test(lower)) {
+  } else if (/(sprache|einstellung|profil|präferenz|dauerhaft|permanent|merken)/.test(lower)) {
     criteria.push(
-      'Gegeben ein hinterlegtes Fälligkeitsdatum, wenn der Schwellenwert (≤ 14 Tage) unterschritten wird, dann wechselt der Status automatisch auf Warnung und bleibt im Audit-Log nachvollziehbar.'
+      'Gegeben eine geänderte Einstellung, wenn eine neue Sitzung oder ein neuer Vorgang startet, dann bleibt die gewählte Einstellung bestehen.'
     );
   } else {
     criteria.push(
-      'Gegeben ungültige oder unvollständige Eingaben, wenn der Vorgang abgeschickt wird, dann verhindert das System fehlerhafte Daten und zeigt einen klaren Korrekturhinweis.'
+      'Gegeben ein typischer Grenz- oder Ausnahmefall, wenn dieser eintritt, dann bleibt das Verhalten eindeutig und nachvollziehbar.'
     );
   }
 
   criteria.push(
-    `Gegeben die Abnahme der Anforderung (${reqType}), wenn das Update produktiv ausgerollt wird, dann sind Tests grün, Daten bleiben persistent und die zugehörige Prozess-Anleitung ist aktuell.`
+    `Gegeben die Abnahme gemäss Anforderungstyp (${reqType}), wenn die Umsetzung überprüft wird, dann ist die Erfüllung anhand realer Stichproben belegt.`
   );
 
   return criteria;
@@ -296,24 +213,24 @@ export function generateAcceptanceCriteria(rawText, role, reqType) {
 const FEASIBILITY_BONUS = {
   einfach: 25,
   mittel: 10,
+  unbewertet: 0,
   aufwaendig: -5
 };
 
 /**
- * Berechnet Impact-Score, Quick-Win-Einstufung (MoSCoW) und T-Shirt-Grösse
- * aus Nutzen (Upvotes) und Machbarkeit (einfach / mittel / aufwaendig).
+ * Priorisierung nach Nutzen (Meldungen) und optionaler Machbarkeit (Ampel).
  */
 export function scoreAndPrioritize({
   rawText,
   urgency = 'normal',
   feedbackType = 'idee',
   votes = 1,
-  feasibility = 'mittel',
+  feasibility = 'unbewertet',
   tasks = []
 }) {
   const lower = String(rawText || '').toLowerCase();
   const safeVotes = Math.max(1, Number(votes) || 1);
-  const safeFeasibility = Object.hasOwn(FEASIBILITY_BONUS, feasibility) ? feasibility : 'mittel';
+  const safeFeasibility = Object.hasOwn(FEASIBILITY_BONUS, feasibility) ? feasibility : 'unbewertet';
 
   let score =
     safeVotes * 6 +
@@ -321,7 +238,7 @@ export function scoreAndPrioritize({
     (URGENCY_BASE_SCORE[urgency] || 10) * 0.7 +
     (TYPE_BONUS[feedbackType] || 8) * 0.4;
 
-  if (/(ausfall|sperr|kunde|hotline|support|ticket|beschwer|frist|self-service|beleg|auszug)/.test(lower)) {
+  if (/(ausfall|sperr|kunde|beschwer|frist|dringend|blockiert)/.test(lower)) {
     score += 12;
   }
   if (urgency === 'kritisch') {
@@ -336,35 +253,30 @@ export function scoreAndPrioritize({
     moscow = 'Should';
   }
 
-  let impactLabel = 'Idee';
+  let impactLabel = 'Anforderung';
   if (safeFeasibility === 'einfach' && safeVotes >= 4) {
     impactLabel = 'Quick Win';
   } else if (safeVotes >= 8 && safeFeasibility === 'aufwaendig') {
-    impactLabel = 'Grossprojekt';
+    impactLabel = 'Grossvorhaben';
   } else if (moscow === 'Must' || moscow === 'Should') {
-    impactLabel = 'Hoher Nutzen';
+    impactLabel = 'Hoher Bedarf';
   }
 
-  const totalHours = tasks.reduce((sum, t) => sum + (Number(t.estimateHours) || 1), 0);
-  let sizeEstimate = 'S';
-  if (safeFeasibility === 'aufwaendig' || totalHours > 9) {
-    sizeEstimate = 'L';
-  } else if (safeFeasibility === 'mittel' || totalHours > 5) {
-    sizeEstimate = 'M';
-  }
+  const totalHours = tasks.reduce((sum, t) => sum + (Number(t.estimateHours) || 0), 0);
+  let sizeEstimate = 'Offen';
+  if (safeFeasibility === 'einfach') sizeEstimate = 'S';
+  else if (safeFeasibility === 'mittel') sizeEstimate = 'M';
+  else if (safeFeasibility === 'aufwaendig') sizeEstimate = 'L';
 
   return { score, moscow, impactLabel, sizeEstimate, totalHours, feasibility: safeFeasibility };
 }
 
-/**
- * Erzeugt einen prägnanten Titel aus dem Feedback
- */
 function buildShortTitle(mainPart, role) {
   let clean = cleanWhitespace(mainPart)
     .replace(/^(es nervt(,?\s*dass)?|kunden\s+beschweren\s+sich(,?\s*dass)?|wir\s+brauchen(\s+dringend)?|es\s+fehlt\s+)/i, '')
     .trim();
 
-  if (!clean) clean = `Anforderung aus ${role}`;
+  if (!clean) clean = `Anforderung (${role})`;
   clean = capitalizeFirst(clean);
   if (clean.length > 72) {
     clean = `${clean.slice(0, 69).replace(/\s+\S*$/, '')}…`;
@@ -372,9 +284,6 @@ function buildShortTitle(mainPart, role) {
   return clean;
 }
 
-/**
- * Duplikat-Radar: Vergleicht Stichwörter gegen bestehende Stories
- */
 export function findPotentialDuplicates(rawText, existingStories = []) {
   const inputKeywords = extractKeywords(rawText);
   if (inputKeywords.length === 0) return [];
@@ -405,61 +314,43 @@ export function findPotentialDuplicates(rawText, existingStories = []) {
 }
 
 /**
- * Erkennt Rolle / Bereich automatisch aus dem Freitext (damit kein Dropdown nötig ist)
+ * Branchenneutrale Stakeholder-Rolle (ohne branchenspezifische Unterstellungen).
  */
-export function detectSourceRole(rawText, origin = 'kunde') {
-  const lower = String(rawText || '').toLowerCase();
-  if (origin === 'betrieb') {
-    if (/(support|hotline|ticket|anruf|rückfrage)/.test(lower)) return 'Support & Betrieb';
-    if (/(rechnung|mahnung|buchhaltung|beleg|auszug)/.test(lower)) return 'Administration & Finanzen';
-    if (/(server|zertifikat|backup|docker|passwort|datenbank|api|deploy)/.test(lower)) return 'IT-Betrieb';
-    return 'Betrieb & Team';
-  }
-  if (/(support|hotline|ticket|wartezeit)/.test(lower)) return 'Nutzende & Support';
-  if (/(beleg|auszug|rechnung|pdf|download|dokument)/.test(lower)) return 'Nutzende (Self-Service)';
-  if (/(login|passwort|pin|zugang|app|mobile)/.test(lower)) return 'App-Nutzende';
-  return 'Kundschaft / Nutzende';
+export function detectSourceRole(_rawText, origin = 'kunde') {
+  if (origin === 'betrieb') return 'Team / Betrieb';
+  return 'Nutzende / Kundschaft';
 }
 
-/**
- * Erkennt Feedback-Kategorie automatisch aus dem Freitext
- */
 export function detectFeedbackType(rawText) {
   const lower = String(rawText || '').toLowerCase();
-  if (/(kunde|kundschaft|beschwer|ärger|hotline|frust|absturz|bricht ab|unzufrieden)/.test(lower)) {
+  if (/(kunde|kundschaft|beschwer|ärger|frust|absturz|bricht ab|unzufrieden)/.test(lower)) {
     return 'kunden_aerger';
   }
-  if (/(zertifikat|compliance|dsg|gesetz|audit|sicherheit|sperr|pin|2fa|frist)/.test(lower)) {
+  if (/(gesetz|compliance|dsg|dsgvo|audit|sicherheit|sperr|frist|vorschrift)/.test(lower)) {
     return 'compliance';
   }
-  if (/(manuell|excel|klick|maske|dauer|stunde|warten|prozess|ablauf|nervt|doppelt)/.test(lower)) {
+  if (/(manuell|dauer|stunde|warten|prozess|ablauf|nervt|doppelt|umständlich)/.test(lower)) {
     return 'prozess_engpass';
   }
   return 'idee';
 }
 
-/**
- * Erkennt Dringlichkeit automatisch aus Signalwörtern im Freitext
- */
 export function detectUrgency(rawText) {
   const lower = String(rawText || '').toLowerCase();
   if (/(ausfall|sperr|absturz|sofort|kritisch|blockiert|bricht ab|beschweren sich dauernd|sicherheitslücke)/.test(lower)) {
     return 'kritisch';
   }
-  if (/(nervt|dauernd|ständig|jeden tag|jede woche|hotline|mahnung|frist|warten|stunde|fehler|kompliziert)/.test(lower)) {
+  if (/(nervt|dauernd|ständig|jeden tag|jede woche|frist|warten|fehler|kompliziert)/.test(lower)) {
     return 'hoch';
   }
   return 'normal';
 }
 
-/**
- * Hauptfunktion: Übersetzt rohes Feedback komplett in ein Requirements-Paket
- */
 export function analyzeFeedback({
   rawFeedback,
   sourceRole,
   origin = 'kunde',
-  feasibility = 'mittel',
+  feasibility = 'unbewertet',
   feedbackType,
   urgency,
   votes = 1,
@@ -488,7 +379,7 @@ export function analyzeFeedback({
 
   const title = buildShortTitle(mainPart, role);
   const userStory = `Als ${role} möchte ich ${goalPhrase}, damit ${benefitPhrase}.`;
-  const tasks = sliceIntoTasks(cleaned, reqType);
+  const tasks = sliceIntoTasks(cleaned);
   const acceptanceCriteria = generateAcceptanceCriteria(cleaned, role, reqType);
   const { score, moscow, impactLabel, sizeEstimate, totalHours, feasibility: safeFeasibility } = scoreAndPrioritize({
     rawText: cleaned,

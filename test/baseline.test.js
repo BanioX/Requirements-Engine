@@ -30,9 +30,12 @@ test('.gitignore sperrt .env zuverlässig', () => {
   assert.match(gitignore, /^\.env$/m);
 });
 
-test('Minimalistisches UI (Jakob Nielsen) verzichtet komplett auf Dropdown-Menüs (<select>)', () => {
+test('Minimalistisches UI (Jakob Nielsen & RE-Lehrbuch): keine Dropdowns, keine unnötigen Checkboxen, keine vorausgewählten Kanäle', () => {
   const html = fs.readFileSync(path.join(root, 'src', 'public', 'index.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'src', 'public', 'app.js'), 'utf8');
   assert.doesNotMatch(html, /<select\b/i);
   assert.doesNotMatch(js, /<select\b/i);
+  assert.doesNotMatch(html, /type="checkbox"/i);
+  assert.doesNotMatch(js, /type="checkbox"/i);
+  assert.doesNotMatch(html, /class="ch-btn active"/);
 });

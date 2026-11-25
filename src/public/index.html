@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#000000" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
   <title>ONESTRAND · Requirements Engine</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
@@ -13,15 +13,14 @@
   <header class="topbar no-print">
     <div class="shell topbar-inner">
       <a href="#" class="brand" id="brand-link" aria-label="ONESTRAND Requirements Engine">
-        <span class="os-mark" data-mark>
-          <img src="/assets/mark.svg" alt="" width="40" height="26" />
-          <canvas aria-hidden="true"></canvas>
-        </span>
-        <span class="brand-lockup">
+        <span class="os-pill">
+          <span class="os-mark" data-mark>
+            <img src="/assets/mark.svg" alt="" width="34" height="22" />
+            <canvas aria-hidden="true"></canvas>
+          </span>
           <span class="brand-os">ONESTRAND</span>
-          <span class="brand-sep" aria-hidden="true">/</span>
-          <span class="brand-prod">Requirements Engine</span>
         </span>
+        <span class="brand-prod">Requirements Engine</span>
       </a>
 
       <div class="topbar-right">
@@ -49,13 +48,14 @@
         ></textarea>
         <div class="composer-bar">
           <div class="composer-left">
-            <div class="channel-group" role="group" aria-label="Kanal">
-              <button type="button" class="ch-btn active" data-channel="E-Mail">E-Mail</button>
-              <button type="button" class="ch-btn" data-channel="Telefon">Telefon</button>
-              <button type="button" class="ch-btn" data-channel="Ticket / Chat">Ticket</button>
-              <button type="button" class="ch-btn" data-channel="Intern / Team">Intern</button>
+            <div class="channel-group" role="group" aria-label="Feedback-Kanal">
+              <button type="button" class="ch-btn" data-channel="Persönlich" title="Live Feedback">Persönlich</button>
+              <button type="button" class="ch-btn" data-channel="Telefon" title="Live Feedback">Telefon</button>
+              <button type="button" class="ch-btn" data-channel="Chat" title="Live Feedback">Chat</button>
+              <button type="button" class="ch-btn" data-channel="E-Mail" title="Zeitverzögertes Feedback">E-Mail</button>
             </div>
             <input type="text" id="fb-author" class="author-input" placeholder="Vorname Nachname" aria-label="Idee / Vorschlag von" />
+            <input type="text" id="fb-ref" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" />
             <div id="composer-dur-slot"></div>
           </div>
           <button type="submit" class="btn-primary">Erfassen</button>
@@ -127,7 +127,7 @@
         <div class="report-control-row">
           <div class="status-group" id="rep-timemode-pills" role="group" aria-label="Zeitbasis">
             <span class="sep" style="font-size:0.75rem;">Zeitbasis:</span>
-            <button type="button" class="st-btn active" data-rep-timemode="measured">Echt erfasst (M:S)</button>
+            <button type="button" class="st-btn active" data-rep-timemode="measured">Echt erfasst</button>
             <button type="button" class="st-btn" data-rep-timemode="projected">Hochrechnung (~)</button>
           </div>
 

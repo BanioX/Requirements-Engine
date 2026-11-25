@@ -297,9 +297,10 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const totalWorkdays = Math.round((effectiveSeconds / 3600 / 8.2) * 10) / 10;
 
       const byFeasibility = {
-        einfach: stories.filter((s) => (s.feasibility || 'mittel') === 'einfach').length,
-        mittel: stories.filter((s) => (s.feasibility || 'mittel') === 'mittel').length,
-        aufwaendig: stories.filter((s) => (s.feasibility || 'mittel') === 'aufwaendig').length
+        einfach: stories.filter((s) => s.feasibility === 'einfach').length,
+        mittel: stories.filter((s) => s.feasibility === 'mittel').length,
+        aufwaendig: stories.filter((s) => s.feasibility === 'aufwaendig').length,
+        unbewertet: stories.filter((s) => !['einfach', 'mittel', 'aufwaendig'].includes(s.feasibility)).length
       };
 
       const byStatus = {
@@ -312,7 +313,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const byChannelMap = new Map();
       const creditsMap = new Map();
       for (const s of stories) {
-        const ch = s.channel || 'E-Mail';
+        const ch = (s.channel || '').trim() || 'Ohne Kanal';
         byChannelMap.set(ch, (byChannelMap.get(ch) || 0) + s.report_mentions);
 
         const author = (s.submitted_by || '').trim() || 'Nicht angegeben';
@@ -411,15 +412,17 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         processId,
         dueDate,
         durationSeconds,
-        durationText
+        durationText,
+        interactionRef
       } = req.body || {};
       if (typeof rawFeedback !== 'string' || rawFeedback.trim().length > 2000) {
         return res.status(400).json({ error: 'Feedback muss ein Text mit maximal 2000 Zeichen sein.' });
       }
-      const allowedChannels = new Set(['E-Mail', 'Telefon', 'Ticket / Chat', 'Intern / Team']);
-      const safeChannel = allowedChannels.has(channel) ? channel : 'E-Mail';
-      const resolvedOrigin = origin || (safeChannel === 'Intern / Team' ? 'betrieb' : 'kunde');
+      const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
+      const safeChannel = allowedChannels.has(channel) ? channel : '';
+      const resolvedOrigin = origin || 'kunde';
       const safeAuthor = typeof submittedBy === 'string' ? submittedBy.trim().slice(0, 80) : '';
+      const safeRef = typeof interactionRef === 'string' ? interactionRef.trim().slice(0, 64) : '';
       const parsedDuration = parseDurationSeconds(durationSeconds, durationText);
 
       const existing = await store.listStories();
@@ -438,6 +441,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         channel: safeChannel,
         submittedBy: safeAuthor,
         durationSeconds: parsedDuration,
+        interactionRef: safeRef,
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -476,18 +480,19 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const rawDelta = Number(req.body?.delta ?? 1);
       const delta = Number.isInteger(rawDelta) && rawDelta >= 1 && rawDelta <= 1000 ? rawDelta : 1;
       const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
+      const interactionRef = typeof req.body?.interactionRef === 'string' ? req.body.interactionRef.trim().slice(0, 64) : '';
       const durationPerItem = parseDurationSeconds(req.body?.durationSeconds, req.body?.durationText);
 
       const recalculated = scoreAndPrioritize({
         rawText: current.raw_feedback,
         urgency: current.urgency,
         feedbackType: current.feedback_type,
-        feasibility: current.feasibility || 'mittel',
+        feasibility: current.feasibility || 'unbewertet',
         votes: Number(current.votes) + delta,
         tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
       });
 
-      const updated = await store.upvoteStory(id, recalculated, delta, recordedBy, durationPerItem);
+      const updated = await store.upvoteStory(id, recalculated, delta, recordedBy, durationPerItem, interactionRef);
       res.json(updated);
     } catch (err) {
       next(err);
@@ -517,8 +522,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const { feasibility } = req.body || {};
-      if (!['einfach', 'mittel', 'aufwaendig'].includes(feasibility)) {
-        return res.status(400).json({ error: 'Machbarkeit muss einfach, mittel oder aufwaendig sein.' });
+      if (!['einfach', 'mittel', 'aufwaendig', 'unbewertet'].includes(feasibility)) {
+        return res.status(400).json({ error: 'Machbarkeit muss einfach, mittel, aufwaendig oder unbewertet sein.' });
       }
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });

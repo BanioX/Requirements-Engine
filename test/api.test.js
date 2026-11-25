@@ -73,9 +73,9 @@ function createMockStore({ dbHealthy = true } = {}) {
       const s = {
         id: stories.length + 1,
         origin: payload.origin || 'kunde',
-        channel: payload.channel || 'E-Mail',
+        channel: payload.channel ?? '',
         submitted_by: payload.submittedBy || '',
-        feasibility: payload.feasibility || 'mittel',
+        feasibility: payload.feasibility || 'unbewertet',
         source_role: payload.sourceRole,
         feedback_type: payload.feedbackType,
         urgency: payload.urgency,
@@ -89,6 +89,7 @@ function createMockStore({ dbHealthy = true } = {}) {
         votes: 1,
         total_duration_seconds: dur,
         timed_mentions: dur > 0 ? 1 : 0,
+        interaction_refs_json: payload.interactionRef ? [{ ref: payload.interactionRef, createdAt: new Date().toISOString() }] : [],
         tasks_json: payload.tasks,
         acceptance_criteria_json: payload.acceptanceCriteria,
         status: 'Eingang',
@@ -301,14 +302,17 @@ test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierba
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         rawFeedback: 'Sprache im Portal springt nach jeder Sitzung wieder auf Englisch zurück.',
-        channel: 'Telefon',
+        channel: 'Persönlich',
         submittedBy: 'Anna Beispiel',
+        interactionRef: 'CRM-4821',
         durationText: '04:30'
       })
     });
     assert.equal(createRes.status, 201);
     const created = await createRes.json();
     assert.equal(created.story.total_duration_seconds, 270);
+    assert.equal(created.story.channel, 'Persönlich');
+    assert.equal(created.story.interaction_refs_json[0].ref, 'CRM-4821');
 
     // Quantifizierbare Nachbuchung: 4 weitere Fälle à 03:00 (720 s) -> gesamt 990 s aus 5 Fällen
     const voteRes = await fetch(`${baseUrl}/api/stories/1/vote`, {
