@@ -606,7 +606,7 @@ async function loadIdeas() {
       return `
         <article class="idea-card ${state.freshId === item.id ? 'fresh' : ''}">
           <div class="idea-row">
-            <button type="button" class="vote-box ${voted ? 'voted' : ''} js-vote" data-id="${item.id}" title="Schnell zählen (+1)">
+            <button type="button" class="vote-box ${voted || effortOpen ? 'voted' : ''} js-vote" data-id="${item.id}" title="Upvote mit Zeitaufwand erfassen (min. 1 Min.)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
               <span class="vote-count">${item.votes}×</span>
             </button>
@@ -626,7 +626,6 @@ async function loadIdeas() {
                 <span>${esc(dateStr)}${esc(author)}</span>
                 ${timeChip}
                 ${loopFollowupChip}
-                <button type="button" class="text-link js-effort-toggle" data-id="${item.id}">${effortOpen ? 'Schliessen' : '+ Aufwand erfassen'}</button>
               </div>
               ${effortBarHtml}
               ${refsLine}
@@ -650,7 +649,7 @@ async function loadIdeas() {
       const qty = Math.max(1, Math.min(1000, parseInt(qtyInput.value, 10) || 1));
       const perSec = Number(picker?.dataset.sec || 0);
       const total = qty * perSec;
-      submitBtn.textContent = total > 0 ? `+${qty}× · ${fmtDurationHuman(total)}` : qty > 1 ? `+${qty}× erfassen` : 'Erfassen';
+      submitBtn.textContent = perSec >= 60 ? `+${qty}× · ${fmtDurationHuman(total)}` : 'Erfassen';
     }
 
     bindDurationPicker(picker, syncSubmitLabel);
@@ -1307,14 +1306,14 @@ function init() {
 
     const voteBtn = ev.target.closest('.js-vote');
     if (voteBtn) {
+      ev.stopPropagation();
       const id = Number(voteBtn.dataset.id);
-      await api(`/api/stories/${id}/vote`, {
-        method: 'POST',
-        body: JSON.stringify({ delta: 1, recordedBy: localStorage.getItem('re_author') || '' })
-      });
-      state.votedIds.add(id);
-      localStorage.setItem('re_voted', JSON.stringify([...state.votedIds]));
-      await Promise.all([loadIdeas(), loadHealth()]);
+      state.effortId = state.effortId === id ? null : id;
+      await loadIdeas();
+      if (state.effortId === id) {
+        const durEl = document.querySelector(`.js-quant-form[data-id="${id}"] .dur-input`);
+        durEl?.focus();
+      }
       return;
     }
 
@@ -1355,19 +1354,32 @@ function init() {
       const durInput = picker?.querySelector('.dur-input');
       const refVal = (quantForm.querySelector('input[name="interactionRef"]')?.value || '').trim();
       const durationSeconds = durInput && durInput.value.trim() ? parseMMSS(durInput.value) : Number(picker?.dataset.sec || 0);
-      await api(`/api/stories/${id}/vote`, {
-        method: 'POST',
-        body: JSON.stringify({
-          delta,
-          durationSeconds,
-          interactionRef: refVal,
-          recordedBy: document.getElementById('fb-author')?.value.trim() || ''
-        })
-      });
-      const totalAdded = delta * durationSeconds;
-      state.effortId = null;
-      showToast(totalAdded > 0 ? `+${delta}× (${fmtDurationHuman(totalAdded)}) erfasst.` : `+${delta}× erfasst.`);
-      await Promise.all([loadIdeas(), loadHealth()]);
+
+      if (durationSeconds < 60) {
+        showToast('Mindestens 1 Minute Zeitaufwand (z. B. 01:00) erfassen.');
+        durInput?.focus();
+        return;
+      }
+
+      try {
+        await api(`/api/stories/${id}/vote`, {
+          method: 'POST',
+          body: JSON.stringify({
+            delta,
+            durationSeconds,
+            interactionRef: refVal,
+            recordedBy: document.getElementById('fb-author')?.value.trim() || ''
+          })
+        });
+        state.votedIds.add(id);
+        localStorage.setItem('re_voted', JSON.stringify([...state.votedIds]));
+        const totalAdded = delta * durationSeconds;
+        state.effortId = null;
+        showToast(`+${delta}× (${fmtDurationHuman(totalAdded)}) erfasst.`);
+        await Promise.all([loadIdeas(), loadHealth()]);
+      } catch (err) {
+        showToast(err.message);
+      }
       return;
     }
 

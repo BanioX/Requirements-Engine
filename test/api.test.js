@@ -314,6 +314,14 @@ test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierba
     assert.equal(created.story.channel, 'Persönlich');
     assert.equal(created.story.interaction_refs_json[0].ref, 'CRM-4821');
 
+    // Upvote ohne Zeit (< 1 Minute) muss sauber mit HTTP 400 abgelehnt werden
+    const badVote = await fetch(`${baseUrl}/api/stories/1/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta: 1, durationText: '00:45' })
+    });
+    assert.equal(badVote.status, 400);
+
     // Quantifizierbare Nachbuchung: 4 weitere Fälle à 03:00 (720 s) -> gesamt 990 s aus 5 Fällen
     const voteRes = await fetch(`${baseUrl}/api/stories/1/vote`, {
       method: 'POST',

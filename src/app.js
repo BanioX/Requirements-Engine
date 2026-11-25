@@ -469,7 +469,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Quantifizierbare Meldungen (+1 bis +1000) optional mit echter Dauer (M:S / Sekunden pro Fall)
+  // Quantifizierbare Upvotes (+1 bis +1000) — zwingend mit Zeitaufwand (Minimalwert: 1 Minute = 60 Sek.)
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
@@ -482,6 +482,10 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
       const interactionRef = typeof req.body?.interactionRef === 'string' ? req.body.interactionRef.trim().slice(0, 64) : '';
       const durationPerItem = parseDurationSeconds(req.body?.durationSeconds, req.body?.durationText);
+
+      if (durationPerItem < 60) {
+        return res.status(400).json({ error: 'Zeitaufwand erforderlich (mindestens 01:00).' });
+      }
 
       const recalculated = scoreAndPrioritize({
         rawText: current.raw_feedback,

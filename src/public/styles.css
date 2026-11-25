@@ -1482,7 +1482,7 @@ body.embed-mode .main-wrap {
 @media print {
   @page {
     size: A4;
-    margin: 14mm;
+    margin: 0;
   }
   * {
     -webkit-print-color-adjust: exact !important;
@@ -1490,7 +1490,8 @@ body.embed-mode .main-wrap {
   }
   body {
     background: #ffffff !important;
-    padding: 0 !important;
+    padding: 14mm !important;
+    min-height: auto !important;
   }
   .shell {
     max-width: 100% !important;
