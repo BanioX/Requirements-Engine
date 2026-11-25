@@ -99,7 +99,8 @@ async function loadIdeas() {
 
   const allIdeas = await api(`/api/stories?${params.toString()}`);
 
-  document.getElementById('count-all').textContent = String(allIdeas.length);
+  const totalMentions = allIdeas.reduce((sum, i) => sum + (Number(i.votes) || 1), 0);
+  document.getElementById('count-all').textContent = `${allIdeas.length} (${totalMentions}×)`;
   document.getElementById('count-green').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'einfach').length);
   document.getElementById('count-amber').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'mittel').length);
   document.getElementById('count-red').textContent = String(allIdeas.filter((i) => (i.feasibility || 'mittel') === 'aufwaendig').length);
@@ -142,7 +143,7 @@ async function loadIdeas() {
         ${
           item.internal_note
             ? `<div class="note-line internal">
-                <div><span class="note-key">Intern</span>${esc(item.internal_note)}</div>
+                <div><span class="note-key">Systemlogik / Dev</span>${esc(item.internal_note)}</div>
               </div>`
             : ''
         }
@@ -156,12 +157,20 @@ async function loadIdeas() {
                 <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
                 <button type="button" class="feas-btn js-feas ${feas === 'mittel' ? 'active-mittel' : ''}" data-id="${item.id}" data-feas="mittel"><span class="dot-sm dot-amber"></span>Mittel</button>
                 <button type="button" class="feas-btn js-feas ${feas === 'aufwaendig' ? 'active-aufwaendig' : ''}" data-id="${item.id}" data-feas="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig</button>
+                <button type="button" class="feas-btn js-vote-bulk" data-id="${item.id}" data-delta="10">+10 Meldungen</button>
               </div>
               <div style="display:flex; gap:12px;">
                 <a class="text-link" href="/api/stories/${item.id}/export/markdown">Markdown</a>
                 <button type="button" class="text-link danger js-delete" data-id="${item.id}">Löschen</button>
               </div>
             </div>
+
+            <form class="decision-form js-notes" data-id="${item.id}">
+              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Entwickler-Notiz (intern)…" />
+              <div style="display:flex; justify-content:flex-end;">
+                <button type="submit" class="st-btn active">Notiz sichern</button>
+              </div>
+            </form>
 
             <div class="story-box">
               <div class="drawer-label">User Story &amp; Tasks</div>
@@ -180,7 +189,7 @@ async function loadIdeas() {
             </div>
 
             <div>
-              <div class="drawer-label">Status &amp; Begründung</div>
+              <div class="drawer-label">Status &amp; Kunden-Wording</div>
               <div class="feas-group">
                 <button type="button" class="st-btn js-pick ${pending?.status === 'Geprüft' ? 'active' : ''}" data-id="${item.id}" data-status="Geprüft">Geprüft</button>
                 <button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">In Arbeit</button>
@@ -192,7 +201,7 @@ async function loadIdeas() {
                   ? `
                     <form class="decision-form js-decide" data-id="${item.id}" data-status="${esc(pending.status)}" style="margin-top:10px;">
                       <textarea name="publicResponse" rows="2" required placeholder="Kunden-Wording (E-Mail / Telefon)">${esc(WORDING_TEMPLATES[pending.status] || '')}</textarea>
-                      <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Interne Begründung (vertraulich, optional)" />
+                      <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Interne Begründung (optional)" />
                       <div><button type="submit" class="btn-primary">Speichern</button></div>
                     </form>
                   `
@@ -206,9 +215,9 @@ async function loadIdeas() {
       return `
         <article class="idea-card ${state.freshId === item.id ? 'fresh' : ''}">
           <div class="idea-row">
-            <button type="button" class="vote-box ${voted ? 'voted' : ''} js-vote" data-id="${item.id}" title="Hochvoten">
+            <button type="button" class="vote-box ${voted ? 'voted' : ''} js-vote" data-id="${item.id}" title="Meldung zählen (+1)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
-              <span class="vote-count">${item.votes}</span>
+              <span class="vote-count">${item.votes}×</span>
             </button>
             <div class="idea-body js-toggle" data-id="${item.id}">
               <div class="card-head">
@@ -336,6 +345,17 @@ function init() {
       return;
     }
 
+    const voteBulk = ev.target.closest('.js-vote-bulk');
+    if (voteBulk) {
+      ev.stopPropagation();
+      const id = Number(voteBulk.dataset.id);
+      const delta = Number(voteBulk.dataset.delta || 10);
+      await api(`/api/stories/${id}/vote`, { method: 'POST', body: JSON.stringify({ delta }) });
+      showToast(`+${delta} Meldungen gezählt.`);
+      await Promise.all([loadIdeas(), loadHealth()]);
+      return;
+    }
+
     const voteBtn = ev.target.closest('.js-vote');
     if (voteBtn) {
       const id = Number(voteBtn.dataset.id);
@@ -380,6 +400,19 @@ function init() {
   });
 
   document.getElementById('ideas-list').addEventListener('submit', async (ev) => {
+    const notesForm = ev.target.closest('.js-notes');
+    if (notesForm) {
+      ev.preventDefault();
+      const fd = new FormData(notesForm);
+      await api(`/api/stories/${notesForm.dataset.id}/notes`, {
+        method: 'PATCH',
+        body: JSON.stringify({ internalNote: fd.get('internalNote') })
+      });
+      showToast('Notiz gespeichert.');
+      await loadIdeas();
+      return;
+    }
+
     const formEl = ev.target.closest('.js-decide');
     if (!formEl) return;
     ev.preventDefault();

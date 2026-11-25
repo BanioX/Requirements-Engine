@@ -367,12 +367,29 @@ export function createPostgresStore(pool) {
       return true;
     },
 
-    async upvoteStory(id, recalculated) {
+    async upvoteStory(id, recalculated, delta = 1) {
+      const safeDelta = Math.max(1, Math.min(100, Number(delta) || 1));
       const res = await pool.query(
         `UPDATE feedback_stories
-         SET votes = votes + 1, priority_score = $1, moscow = $2, size_estimate = $3, updated_at = NOW()
-         WHERE id = $4 RETURNING *`,
-        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, id]
+         SET votes = votes + $4, priority_score = $1, moscow = $2, size_estimate = $3, updated_at = NOW()
+         WHERE id = $5 RETURNING *`,
+        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, id]
+      );
+      if (res.rowCount === 0) return null;
+      return {
+        ...res.rows[0],
+        trafficLight: calculateTrafficLight(res.rows[0].due_date)
+      };
+    },
+
+    async updateStoryNotes(id, { internalNote, publicResponse }) {
+      const res = await pool.query(
+        `UPDATE feedback_stories
+         SET internal_note = COALESCE($1, internal_note),
+             public_response = COALESCE($2, public_response),
+             updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [internalNote ?? null, publicResponse ?? null, id]
       );
       if (res.rowCount === 0) return null;
       return {

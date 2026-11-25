@@ -254,7 +254,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Upvote (+1 Nutzen) mit automatischer Impact- & Quick-Win-Neuberechnung
+  // Mengen-Zähler (+1 oder +10 bei Massenthemen) mit automatischer Impact-Neuberechnung
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
@@ -262,16 +262,36 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
 
+      const rawDelta = Number(req.body?.delta ?? 1);
+      const delta = Number.isInteger(rawDelta) && rawDelta >= 1 && rawDelta <= 100 ? rawDelta : 1;
+
       const recalculated = scoreAndPrioritize({
         rawText: current.raw_feedback,
         urgency: current.urgency,
         feedbackType: current.feedback_type,
         feasibility: current.feasibility || 'mittel',
-        votes: Number(current.votes) + 1,
+        votes: Number(current.votes) + delta,
         tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
       });
 
-      const updated = await store.upvoteStory(id, recalculated);
+      const updated = await store.upvoteStory(id, recalculated, delta);
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Entwickler-Notiz (Systemlogik) & Kunden-Wording direkt aktualisieren
+  app.patch('/api/stories/:id/notes', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const { internalNote, publicResponse } = req.body || {};
+      const updated = await store.updateStoryNotes(id, {
+        internalNote: internalNote !== undefined ? String(internalNote).trim().slice(0, 1500) : undefined,
+        publicResponse: publicResponse !== undefined ? String(publicResponse).trim().slice(0, 1500) : undefined
+      });
+      if (!updated) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
       res.json(updated);
     } catch (err) {
       next(err);

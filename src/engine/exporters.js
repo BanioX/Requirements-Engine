@@ -118,20 +118,29 @@ function escapeCsvCell(value) {
 }
 
 export function storiesToCsv(stories = []) {
-  const header = ['ID', 'Titel', 'Rolle', 'Typ', 'MoSCoW', 'Score', 'Grösse', 'Votes', 'Status', 'Frist', 'User Story', 'Begründung'];
+  const header = [
+    'ID',
+    'Meldungen',
+    'Machbarkeit',
+    'Kanal',
+    'Titel',
+    'Status',
+    'Score',
+    'User Story',
+    'Kunden-Wording',
+    'Systemlogik / Dev'
+  ];
   const rows = stories.map((s) => [
     `REQ-${s.id}`,
+    s.votes ?? 1,
+    s.feasibility || 'mittel',
+    s.channel || 'E-Mail',
     s.title,
-    s.source_role,
-    s.req_type,
-    s.moscow,
-    s.priority_score,
-    s.size_estimate,
-    s.votes,
     s.status,
-    s.due_date ? String(s.due_date).slice(0, 10) : '',
+    s.priority_score,
     s.user_story,
-    s.decision_reason || ''
+    s.public_response || s.decision_reason || '',
+    s.internal_note || ''
   ]);
 
   return [header, ...rows].map((row) => row.map(escapeCsvCell).join(';')).join('\r\n');
