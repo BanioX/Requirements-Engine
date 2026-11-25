@@ -70,9 +70,36 @@ function createWriteRateLimiter({ windowMs = 60_000, maxRequests = 120 } = {}) {
   };
 }
 
-export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
+export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerPin } = {}) {
   const app = express();
   const startedAt = Date.now();
+  const configuredManagerPin = String(managerPin ?? process.env.MANAGER_PIN ?? '').trim();
+
+  function getClientToken(req) {
+    return String(req.headers['x-client-token'] || '')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(0, 64);
+  }
+
+  function isManagerRequest(req) {
+    if (configuredManagerPin) {
+      const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+      return provided === configuredManagerPin;
+    }
+    return String(req.headers['x-manager-mode'] || req.query.manager || '') === '1';
+  }
+
+  function requireManagerAccess(req, res, next) {
+    if (!configuredManagerPin) return next();
+    if (isManagerRequest(req)) return next();
+    return res.status(403).json({ error: 'Report-Export ist nur für Manager freigegeben.' });
+  }
+
+  async function getCommentsVisibility() {
+    if (!store.getSetting) return 'all';
+    const val = await store.getSetting('comments_visibility', 'all');
+    return val === 'own_only' ? 'own_only' : 'all';
+  }
   const versionInfo = {
     version: buildInfo.version || process.env.APP_VERSION || '1.0.0-dev',
     commit: buildInfo.commit || process.env.GIT_SHA || 'local',
@@ -198,23 +225,65 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Stories auflisten (Standard: nach Upvotes sortiert)
-  app.get('/api/stories', async (req, res, next) => {
+  // Betriebs-Einstellungen (Kommentar-Sichtbarkeit: 'all' vs. 'own_only' — durch Chef umschaltbar)
+  app.get('/api/settings', async (_req, res, next) => {
     try {
-      const stories = await store.listStories({
-        status: req.query.status,
-        moscow: req.query.moscow,
-        q: req.query.q,
-        sort: req.query.sort
-      });
-      res.json(stories);
+      const commentsVisibility = await getCommentsVisibility();
+      res.json({ commentsVisibility, managerPinRequired: Boolean(configuredManagerPin) });
     } catch (err) {
       next(err);
     }
   });
 
-  // CSV-Export für Excel (unterstützt optional dieselben Zeitraum- & Querbeet-Filter wie der Report)
-  app.get('/api/stories/export/csv', async (req, res, next) => {
+  app.patch('/api/settings', requireManagerAccess, async (req, res, next) => {
+    try {
+      const { commentsVisibility } = req.body || {};
+      if (!['all', 'own_only'].includes(commentsVisibility)) {
+        return res.status(400).json({ error: 'commentsVisibility muss all oder own_only sein.' });
+      }
+      if (store.setSetting) {
+        await store.setSetting('comments_visibility', commentsVisibility);
+      }
+      res.json({ commentsVisibility, managerPinRequired: Boolean(configuredManagerPin) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Stories auflisten (filtert Entscheid-Kommentare wenn Chef 'own_only' aktiviert hat)
+  app.get('/api/stories', async (req, res, next) => {
+    try {
+      const [stories, visibility] = await Promise.all([
+        store.listStories({
+          status: req.query.status,
+          moscow: req.query.moscow,
+          q: req.query.q,
+          sort: req.query.sort
+        }),
+        getCommentsVisibility()
+      ]);
+      const manager = isManagerRequest(req);
+      const token = getClientToken(req);
+
+      const sanitized = stories.map((s) => {
+        const list = Array.isArray(s.decision_feedback_json) ? s.decision_feedback_json : [];
+        const visibleList =
+          visibility === 'own_only' && !manager
+            ? list.filter((c) => c.clientToken && c.clientToken === token)
+            : list;
+        return {
+          ...s,
+          decision_feedback_json: visibleList.map(({ clientToken: _omit, ...rest }) => rest)
+        };
+      });
+      res.json(sanitized);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // CSV-Export für Excel (nur Manager, unterstützt alle Report-Filter)
+  app.get('/api/stories/export/csv', requireManagerAccess, async (req, res, next) => {
     try {
       const hasReportFilters = req.query.from || req.query.to || req.query.status || req.query.feasibility;
       const stories =
@@ -237,8 +306,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Management-Report API (Zeitraum 01.01.XXXX - 31.12.XXXX, querbeet filterbar, echte M:S-Zeiten & Credits)
-  app.get('/api/report', async (req, res, next) => {
+  // Management-Report API (nur Manager; Zeitraum 01.01.XXXX - 31.12.XXXX, echte Zeiten & Einsparung)
+  app.get('/api/report', requireManagerAccess, async (req, res, next) => {
     try {
       const isoDate = /^\d{4}-\d{2}-\d{2}$/;
       const from = isoDate.test(String(req.query.from || '')) ? String(req.query.from) : null;
@@ -251,6 +320,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const storyId = req.query.storyId ? parsePositiveId(req.query.storyId) : null;
       const timeMode = req.query.timeMode === 'projected' ? 'projected' : 'measured';
       const minutesPerRequest = Math.max(1, Math.min(60, Number(req.query.minutesPerRequest) || 5));
+      const rawRate = Number(req.query.hourlyRate);
+      const hourlyRate = Number.isFinite(rawRate) && rawRate > 0 && rawRate <= 2000 ? rawRate : null;
 
       const data = await store.getReportData({ from, to, status, feasibility, granularity, storyId });
       const rawStories = data.stories || [];
@@ -349,6 +420,24 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const implementationRate =
         totalStories > 0 ? Math.round((byStatus.erledigt / totalStories) * 100) : 0;
 
+      // Realer Wirkungs- & Einsparungs-Nachweis (nur aus tatsächlich umgesetzten Themen)
+      const implementedStories = stories.filter((s) => s.status === 'Umgesetzt');
+      const savedMentions = implementedStories.reduce((sum, s) => sum + s.report_mentions, 0);
+      const savedSeconds = implementedStories.reduce((sum, s) => sum + s.report_effective_seconds, 0);
+      const savedHours = Math.round((savedSeconds / 3600) * 100) / 100;
+      const savedCostChf = hourlyRate && savedSeconds > 0 ? Math.round((savedSeconds / 3600) * hourlyRate) : null;
+      const topSavedItems = [...implementedStories]
+        .sort((a, b) => b.report_effective_seconds - a.report_effective_seconds || b.report_mentions - a.report_mentions)
+        .slice(0, 4)
+        .map((s) => ({
+          id: s.id,
+          title: s.title,
+          mentions: s.report_mentions,
+          seconds: s.report_effective_seconds,
+          costChf: hourlyRate && s.report_effective_seconds > 0 ? Math.round((s.report_effective_seconds / 3600) * hourlyRate) : null,
+          isEstimated: s.report_is_estimated
+        }));
+
       const pressureItems = stories
         .filter((s) => (Number(s.post_decision_mentions) || 0) > 0 || (Number(s.decision_down) || 0) > (Number(s.decision_up) || 0))
         .map((s) => ({
@@ -369,7 +458,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
           : null;
 
       res.json({
-        filters: { from, to, status, feasibility, granularity, storyId, timeMode, minutesPerRequest },
+        filters: { from, to, status, feasibility, granularity, storyId, timeMode, minutesPerRequest, hourlyRate },
         generatedAt: new Date().toISOString(),
         summary: {
           totalStories,
@@ -381,6 +470,15 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
           totalHours,
           totalWorkdays,
           implementationRate
+        },
+        savings: {
+          implementedCount: implementedStories.length,
+          savedMentions,
+          savedSeconds,
+          savedHours,
+          hourlyRate,
+          savedCostChf,
+          topSavedItems
         },
         byFeasibility,
         byStatus,
@@ -445,6 +543,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         durationSeconds: parsedDuration,
         interactionRef: safeRef,
         customerRef: safeCustomer,
+        clientToken: getClientToken(req),
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -472,15 +571,28 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Alle einzelnen Kundenfeedbacks / Fall-Logs zu einer Anforderung (für Kachel-Ansicht)
+  // Alle einzelnen Kundenfeedbacks / Fall-Logs zu einer Anforderung (beachtet Chef-Schalter 'own_only')
   app.get('/api/stories/:id/mentions', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
-      const mentions = store.listStoryMentions ? await store.listStoryMentions(id, req.query.limit) : [];
-      res.json(mentions);
+      const [allMentions, visibility] = await Promise.all([
+        store.listStoryMentions ? store.listStoryMentions(id, req.query.limit) : [],
+        getCommentsVisibility()
+      ]);
+      const manager = isManagerRequest(req);
+      const token = getClientToken(req);
+
+      const visible =
+        visibility === 'own_only' && !manager
+          ? allMentions.filter((m) => m.client_token && m.client_token === token)
+          : allMentions;
+
+      res.setHeader('X-Comments-Visibility', visibility);
+      res.setHeader('X-Total-Mentions', String(allMentions.length));
+      res.json(visible.map(({ client_token: _omit, ...rest }) => rest));
     } catch (err) {
       next(err);
     }
@@ -525,7 +637,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         interactionRef,
         feedbackNote,
         customerRef,
-        channel: safeChannel
+        channel: safeChannel,
+        clientToken: getClientToken(req)
       });
       res.json(updated);
     } catch (err) {
@@ -634,7 +747,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const updated = await store.recordDecisionFeedback(id, {
         sentiment,
         comment: cleanComment,
-        author: cleanAuthor
+        author: cleanAuthor,
+        clientToken: getClientToken(req)
       });
       if (!updated) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
       res.json(updated);
@@ -663,7 +777,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const story = await store.getStoryById(id);
       if (!story) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
-      const issueType = req.body?.issueType === 'Feature' ? 'Feature' : 'Story';
+      const issueType = ['Story', 'Feature'].includes(req.body?.issueType) ? req.body.issueType : undefined;
 
       const result = await pushStoryToJira(story, { issueType });
       if (result.mode === 'api' && store.setStoryJiraLink) {

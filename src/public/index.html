@@ -31,8 +31,7 @@
           <input type="search" id="filter-q" class="search" placeholder="Suchen" aria-label="Suchen" />
         </div>
         <button type="button" id="btn-install-app" class="quiet-btn hidden" title="Als Desktop-App installieren">Installieren</button>
-        <button type="button" id="btn-toggle-report" class="quiet-btn">Report</button>
-        <a href="/api/stories/export/csv" class="quiet-btn">CSV</a>
+        <button type="button" id="btn-toggle-report" class="quiet-btn">Manager-Report</button>
       </div>
     </div>
   </header>
@@ -98,7 +97,7 @@
             <button type="button" class="st-btn" id="rep-year-prev">Vorjahr</button>
           </div>
           <div class="report-actions">
-            <a href="/api/stories/export/csv" id="rep-csv-link" class="quiet-btn">CSV</a>
+            <a href="/api/stories/export/csv" id="rep-csv-link" class="quiet-btn">Excel (CSV)</a>
             <button type="button" id="btn-export-pdf" class="btn-primary">PDF exportieren</button>
           </div>
         </div>
@@ -140,6 +139,18 @@
             <button type="button" class="st-btn" data-rep-min="10">10m</button>
             <button type="button" class="st-btn" data-rep-min="15">15m</button>
           </div>
+
+          <div class="status-group" role="group" aria-label="Optionaler Stundensatz">
+            <input type="number" id="rep-rate" class="ref-input" min="1" max="2000" step="5" placeholder="CHF / h" aria-label="Optionaler Stundensatz in CHF für Einsparungs-Nachweis" style="width:92px;" />
+          </div>
+
+          <div class="status-group" id="rep-vis-pills" role="group" aria-label="Kommentar-Sichtbarkeit">
+            <span class="sep" style="font-size:0.75rem;">Kommentare:</span>
+            <button type="button" class="st-btn active" data-vis="all">Alle sehen alle</button>
+            <button type="button" class="st-btn" data-vis="own_only">Nur eigene (Chef alle)</button>
+          </div>
+
+          <button type="button" id="btn-chef-view" class="st-btn" title="Chef-Sicht auf dem Board umschalten">Chef-Sicht</button>
         </div>
       </div>
 

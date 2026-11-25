@@ -135,17 +135,21 @@ export function storiesToCsv(stories = []) {
     'Ø Dauer (MM:SS)',
     'Machbarkeit',
     'Kanal',
+    'CRM / Ref-IDs',
     'Titel',
     'Status',
     'Score',
     'User Story',
-    'Kunden-Wording',
-    'Systemlogik / Dev'
+    'Rückmeldung / Entscheid',
+    'Systemlogik / Fachnotiz'
   ];
   const rows = stories.map((s) => {
     const totalSec = Number(s.period_duration_seconds ?? s.total_duration_seconds ?? 0);
     const timed = Number(s.period_timed_mentions ?? s.timed_mentions ?? 0);
     const avgSec = timed > 0 ? Math.round(totalSec / timed) : 0;
+    const refs = Array.isArray(s.interaction_refs_json)
+      ? [...new Set(s.interaction_refs_json.map((r) => r.ref).filter(Boolean))].join(', ')
+      : '';
     return [
       `REQ-${s.id}`,
       s.created_at ? String(s.created_at).slice(0, 10) : '',
@@ -155,6 +159,7 @@ export function storiesToCsv(stories = []) {
       formatSecondsMMSS(avgSec),
       s.feasibility || 'unbewertet',
       s.channel || '',
+      refs,
       s.title,
       s.status,
       s.priority_score,

@@ -1,12 +1,27 @@
 const currentYear = new Date().getFullYear();
 
+function getOrCreateClientId() {
+  let id = localStorage.getItem('re_client_id');
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 36);
+    localStorage.setItem('re_client_id', id);
+  }
+  return id;
+}
+
+const CLIENT_ID = getOrCreateClientId();
+
 const state = {
   view: 'board', // 'board' | 'report'
   channel: '',
   ampel: 'alle',
   mode: 'all', // 'all' | 'active' | 'done'
+  commentsVisibility: 'all', // 'all' | 'own_only'
+  chefView: sessionStorage.getItem('re_chef_view') === '1',
   expandedId: null,
   expandedMentions: [],
+  activeMentionId: null,
+  showAllMentions: false,
   effortId: null,
   effortChannel: '',
   freshId: null,
@@ -22,7 +37,9 @@ const state = {
     feasibility: 'Alle',
     status: 'Alle',
     timeMode: 'measured', // 'measured' | 'projected'
-    minutesPerRequest: 5
+    minutesPerRequest: 5,
+    hourlyRate: '',
+    managerPin: sessionStorage.getItem('re_mgr_pin') || ''
   }
 };
 
@@ -305,14 +322,38 @@ function showToast(msg) {
 }
 
 async function api(url, options = {}) {
+  const baseHeaders = {
+    'Content-Type': 'application/json',
+    'x-client-token': CLIENT_ID
+  };
+  if (state.chefView) baseHeaders['x-manager-mode'] = '1';
+  if (state.report.managerPin) baseHeaders['x-manager-pin'] = state.report.managerPin;
+
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers: { ...baseHeaders, ...(options.headers || {}) }
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+async function loadSettings() {
+  try {
+    const s = await api('/api/settings');
+    state.commentsVisibility = s.commentsVisibility === 'own_only' ? 'own_only' : 'all';
+    document.querySelectorAll('[data-vis]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.vis === state.commentsVisibility);
+    });
+    const chefBtn = document.getElementById('btn-chef-view');
+    if (chefBtn) {
+      chefBtn.classList.toggle('active', state.chefView);
+      chefBtn.textContent = state.chefView ? 'Chef-Sicht: An' : 'Chef-Sicht';
+    }
+  } catch {
+    // Fallback bleibt 'all'
+  }
 }
 
 function ampelDot(feasibility) {
@@ -359,7 +400,7 @@ function setView(viewName) {
   document.getElementById('board-search-wrap').classList.toggle('hidden', isReport);
   const btn = document.getElementById('btn-toggle-report');
   btn.classList.toggle('active', isReport);
-  btn.textContent = isReport ? '← Board' : 'Report';
+  btn.textContent = isReport ? '← Board' : 'Manager-Report';
   if (isReport) {
     loadReport();
   }
@@ -539,52 +580,75 @@ async function loadIdeas() {
         : '';
 
       const mentionsList = expanded ? state.expandedMentions : [];
+      const visibleMentions = state.showAllMentions ? mentionsList : mentionsList.slice(0, 12);
+      const activeMention =
+        mentionsList.find((m) => m.id === state.activeMentionId) || mentionsList[0] || null;
+
+      function renderCasePreviewHtml(m) {
+        if (!m) return '';
+        const dt = fmtDateCH(m.created_at);
+        const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+        const dur = Number(m.duration_seconds) || 0;
+        return `
+          <div class="case-preview-top">
+            <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              ${dur > 0 ? `<span class="time-chip">⏱ ${esc(fmtMMSS(dur))}</span>` : ''}
+              ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
+              ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
+            </div>
+          </div>
+          <p class="case-preview-quote ${m.feedback_note ? '' : 'muted'}">
+            ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
+          </p>
+          ${
+            m.customer_ref || m.recorded_by
+              ? `<div class="case-preview-meta">
+                  ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
+                  ${m.recorded_by ? `<span>Erfasst von: <strong>${esc(m.recorded_by)}</strong></span>` : ''}
+                </div>`
+              : ''
+          }
+        `;
+      }
+
       const tilesHtml = expanded
         ? `
           <div class="tiles-section">
             <div class="tiles-head">
-              <div class="drawer-label" style="margin:0;">Feedbacks &amp; Logs (${mentionsList.length})</div>
+              <div class="drawer-label" style="margin:0;">
+                ${state.commentsVisibility === 'own_only' && !state.chefView ? `Eigene Feedbacks (${mentionsList.length})` : `Feedbacks & Logs (${mentionsList.length})`}
+              </div>
               ${
-                mentionsList.length > 2
-                  ? `<div class="tiles-nav">
-                      <button type="button" class="tile-arrow js-rail-scroll" data-dir="-1" aria-label="Nach links">‹</button>
-                      <button type="button" class="tile-arrow js-rail-scroll" data-dir="1" aria-label="Nach rechts">›</button>
-                    </div>`
+                mentionsList.length > 12
+                  ? `<button type="button" class="text-link js-toggle-all-mentions">${state.showAllMentions ? 'Weniger' : `Alle ${mentionsList.length} anzeigen`}</button>`
                   : ''
               }
             </div>
             ${
               mentionsList.length === 0
-                ? '<div style="font-size:0.8rem; color:var(--silver-3);">Noch keine Einzelfälle geloggt.</div>'
-                : `<div class="tiles-rail">
-                    ${mentionsList
+                ? '<div style="font-size:0.8rem; color:var(--silver-3);">Noch keine Einzelfälle erfasst.</div>'
+                : `
+                  <div class="badge-cloud">
+                    ${visibleMentions
                       .map((m) => {
-                        const dt = fmtDateCH(m.created_at);
-                        const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const shortDate = m.created_at ? fmtDateCH(m.created_at).slice(0, 5) : '';
                         const dur = Number(m.duration_seconds) || 0;
-                        const countNote = Number(m.delta) > 1 ? `<span class="tag-mini">${m.delta}×</span>` : '';
+                        const label = m.customer_ref || m.recorded_by || m.channel || '';
+                        const isActive = activeMention && activeMention.id === m.id;
                         return `
-                          <div class="fb-tile">
-                            <div>
-                              <div class="tile-top">
-                                <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
-                                ${dur > 0 ? `<span class="time-chip">⏱ ${esc(fmtMMSS(dur))}</span>` : countNote}
-                              </div>
-                              <p class="tile-quote ${m.feedback_note ? '' : 'muted'}" style="margin-top:7px;">
-                                ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
-                              </p>
-                            </div>
-                            <div class="tile-meta">
-                              ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
-                              ${m.recorded_by ? `<span>Von: ${esc(m.recorded_by)}</span>` : ''}
-                              ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
-                              ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
-                            </div>
-                          </div>
+                          <button type="button" class="case-badge js-case-badge ${isActive ? 'active' : ''}" data-mention-id="${m.id}">
+                            <span>${esc(shortDate)}</span>
+                            ${dur > 0 ? `<span class="case-badge-dur">${esc(fmtMMSS(dur))}</span>` : ''}
+                            ${label ? `<span>${esc(label.slice(0, 16))}</span>` : ''}
+                            ${m.interaction_ref ? `<span class="case-badge-ref">#${esc(m.interaction_ref.slice(0, 12))}</span>` : ''}
+                          </button>
                         `;
                       })
                       .join('')}
-                  </div>`
+                  </div>
+                  <div class="case-preview" id="case-preview-box">${renderCasePreviewHtml(activeMention)}</div>
+                `
             }
           </div>
         `
@@ -602,9 +666,7 @@ async function loadIdeas() {
                 <button type="button" class="feas-btn js-feas ${feas === 'aufwaendig' ? 'active-aufwaendig' : ''}" data-id="${item.id}" data-feas="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig</button>
               </div>
               <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                <button type="button" class="text-link js-jira" data-id="${item.id}" data-type="Story">→ Jira Story</button>
-                <button type="button" class="text-link js-jira" data-id="${item.id}" data-type="Feature">→ Jira Feature</button>
-                <a class="text-link" href="/api/stories/${item.id}/export/markdown">Markdown</a>
+                <button type="button" class="text-link js-jira" data-id="${item.id}" title="Übergibt als Story oder Feature (je nach Ampel)">→ Jira</button>
                 <button type="button" class="text-link danger js-delete" data-id="${item.id}">Löschen</button>
               </div>
             </div>
@@ -704,6 +766,50 @@ async function loadIdeas() {
       `;
     })
     .join('');
+
+  // Hover- & Klick-Vorschau für die kompakten Fall-Badges
+  const previewBox = listEl.querySelector('#case-preview-box');
+  if (previewBox) {
+    const updatePreview = (mentionId) => {
+      const m = state.expandedMentions.find((x) => x.id === mentionId);
+      if (!m) return;
+      state.activeMentionId = mentionId;
+      listEl.querySelectorAll('.js-case-badge').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.mentionId) === mentionId);
+      });
+      const dt = fmtDateCH(m.created_at);
+      const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+      const dur = Number(m.duration_seconds) || 0;
+      previewBox.innerHTML = `
+        <div class="case-preview-top">
+          <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
+          <div style="display:flex; gap:6px; align-items:center;">
+            ${dur > 0 ? `<span class="time-chip">⏱ ${esc(fmtMMSS(dur))}</span>` : ''}
+            ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
+            ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
+          </div>
+        </div>
+        <p class="case-preview-quote ${m.feedback_note ? '' : 'muted'}">
+          ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
+        </p>
+        ${
+          m.customer_ref || m.recorded_by
+            ? `<div class="case-preview-meta">
+                ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
+                ${m.recorded_by ? `<span>Erfasst von: <strong>${esc(m.recorded_by)}</strong></span>` : ''}
+              </div>`
+            : ''
+        }
+      `;
+    };
+    listEl.querySelectorAll('.js-case-badge').forEach((badge) => {
+      badge.addEventListener('mouseenter', () => updatePreview(Number(badge.dataset.mentionId)));
+      badge.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        updatePreview(Number(badge.dataset.mentionId));
+      });
+    });
+  }
 
   // Zeitrad-Picker und Kanal-Toggles im +1 Upvote-Formular aktivieren
   listEl.querySelectorAll('.js-quant-form').forEach((formEl) => {
@@ -818,7 +924,7 @@ function buildTimelineSvg(timeline = [], granularity = 'month') {
 }
 
 async function loadReport() {
-  const { from, to, granularity, storyId, feasibility, status, timeMode, minutesPerRequest } = state.report;
+  const { from, to, granularity, storyId, feasibility, status, timeMode, minutesPerRequest, hourlyRate } = state.report;
   const params = new URLSearchParams({
     from,
     to,
@@ -829,9 +935,37 @@ async function loadReport() {
     minutesPerRequest: String(minutesPerRequest)
   });
   if (storyId) params.set('storyId', String(storyId));
+  if (hourlyRate && Number(hourlyRate) > 0) params.set('hourlyRate', String(hourlyRate));
 
-  document.getElementById('rep-csv-link').href = `/api/stories/export/csv?${params.toString()}`;
-  const rep = await api(`/api/report?${params.toString()}`);
+  const csvParams = new URLSearchParams(params);
+  if (state.report.managerPin) csvParams.set('pin', state.report.managerPin);
+  document.getElementById('rep-csv-link').href = `/api/stories/export/csv?${csvParams.toString()}`;
+
+  let rep;
+  try {
+    rep = await api(`/api/report?${params.toString()}`, {
+      headers: state.report.managerPin ? { 'x-manager-pin': state.report.managerPin } : {}
+    });
+    document.querySelector('.report-controls')?.classList.remove('hidden');
+  } catch (err) {
+    document.querySelector('.report-controls')?.classList.add('hidden');
+    document.getElementById('report-sheet').innerHTML = `
+      <form id="mgr-pin-form" style="max-width:340px; margin:24px auto; display:flex; flex-direction:column; gap:10px; text-align:center;">
+        <div class="drawer-label" style="margin:0;">Manager-Freigabe</div>
+        <p style="margin:0; font-size:0.84rem; color:var(--silver-2);">${esc(err.message)}</p>
+        <input type="password" name="pin" required autofocus placeholder="Manager-PIN" class="author-input" style="width:100%; text-align:center;" />
+        <button type="submit" class="btn-primary">Freischalten</button>
+      </form>
+    `;
+    document.getElementById('mgr-pin-form')?.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const pin = String(new FormData(ev.target).get('pin') || '').trim();
+      state.report.managerPin = pin;
+      sessionStorage.setItem('re_mgr_pin', pin);
+      loadReport();
+    });
+    return;
+  }
 
   const granLabels = { day: 'Tag', week: 'Woche', month: 'Monat', year: 'Jahr' };
   const focusedStory = storyId ? rep.stories.find((s) => s.id === storyId) : null;
@@ -918,6 +1052,29 @@ async function loadReport() {
           })
           .join('');
 
+  const savingsHtml =
+    rep.savings && rep.savings.implementedCount > 0
+      ? `
+        <div class="savings-box">
+          <div class="chart-title" style="color:var(--green); margin-bottom:6px;">
+            Wirkung &amp; Einsparung — ${rep.savings.implementedCount} umgesetzte Themen (${rep.savings.savedMentions}× gelöste Anfragen${rep.savings.savedSeconds > 0 ? ` · ${esc(fmtDurationHuman(rep.savings.savedSeconds, { estimated: rep.summary.hasEstimated }))}` : ''}${rep.savings.savedCostChf ? ` · CHF ${rep.savings.savedCostChf.toLocaleString('de-CH')}.–` : ''})
+          </div>
+          ${rep.savings.topSavedItems
+            .map(
+              (item) => `
+              <div class="savings-item">
+                <span><strong>${esc(item.title)}</strong></span>
+                <span style="white-space:nowrap; color:var(--green); font-weight:600;">
+                  ${item.mentions}×${item.seconds > 0 ? ` · ${esc(fmtDurationHuman(item.seconds, { estimated: item.isEstimated }))}` : ''}${item.costChf ? ` · CHF ${item.costChf.toLocaleString('de-CH')}.–` : ''}
+                </span>
+              </div>
+            `
+            )
+            .join('')}
+        </div>
+      `
+      : '';
+
   const pressureHtml =
     rep.pressureItems && rep.pressureItems.length > 0
       ? `
@@ -966,6 +1123,7 @@ async function loadReport() {
       <div class="rep-sub">Erstellt am ${esc(fmtDateCH(rep.generatedAt))}</div>
     </div>
 
+    ${savingsHtml}
     ${pressureHtml}
 
     <div class="rep-kpis">
@@ -1241,6 +1399,39 @@ function init() {
     });
   });
 
+  document.getElementById('rep-rate')?.addEventListener('input', (ev) => {
+    state.report.hourlyRate = ev.target.value.trim();
+    clearTimeout(init._rateT);
+    init._rateT = setTimeout(loadReport, 220);
+  });
+
+  document.querySelectorAll('[data-vis]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        const res = await api('/api/settings', {
+          method: 'PATCH',
+          body: JSON.stringify({ commentsVisibility: btn.dataset.vis })
+        });
+        state.commentsVisibility = res.commentsVisibility;
+        document.querySelectorAll('[data-vis]').forEach((b) => b.classList.toggle('active', b.dataset.vis === state.commentsVisibility));
+        showToast(
+          state.commentsVisibility === 'own_only'
+            ? 'Aktiv: User sehen nur eigene Kommentare (Chef sieht alle).'
+            : 'Aktiv: Alle sehen alle Kommentare.'
+        );
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+  });
+
+  document.getElementById('btn-chef-view')?.addEventListener('click', async () => {
+    state.chefView = !state.chefView;
+    sessionStorage.setItem('re_chef_view', state.chefView ? '1' : '0');
+    await loadSettings();
+    showToast(state.chefView ? 'Chef-Sicht aktiv (alle Kommentare sichtbar).' : 'Standard-User-Sicht aktiv.');
+  });
+
   document.querySelectorAll('.ch-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const next = state.channel === btn.dataset.channel ? '' : btn.dataset.channel;
@@ -1280,15 +1471,15 @@ function init() {
   });
 
   document.getElementById('ideas-list').addEventListener('click', async (ev) => {
-    const railArrow = ev.target.closest('.js-rail-scroll');
-    if (railArrow) {
+    const toggleAllBtn = ev.target.closest('.js-toggle-all-mentions');
+    if (toggleAllBtn) {
       ev.stopPropagation();
-      const rail = railArrow.closest('.tiles-section')?.querySelector('.tiles-rail');
-      rail?.scrollBy({ left: Number(railArrow.dataset.dir) * 260, behavior: 'smooth' });
+      state.showAllMentions = !state.showAllMentions;
+      await loadIdeas();
       return;
     }
 
-    if (ev.target.closest('.dur-picker') || ev.target.closest('.js-quant-form')) return;
+    if (ev.target.closest('.dur-picker') || ev.target.closest('.js-quant-form') || ev.target.closest('.case-preview')) return;
 
     const copyBtn = ev.target.closest('.js-copy');
     if (copyBtn) {
@@ -1306,21 +1497,21 @@ function init() {
     if (jiraBtn) {
       ev.stopPropagation();
       const id = Number(jiraBtn.dataset.id);
-      const issueType = jiraBtn.dataset.type || 'Story';
       try {
         const res = await api(`/api/stories/${id}/jira`, {
           method: 'POST',
-          body: JSON.stringify({ issueType })
+          body: JSON.stringify({})
         });
+        const kind = res.issueType || 'Story';
         if (res.mode === 'api') {
-          showToast(`Jira ${issueType} erstellt: ${res.jiraKey}`);
+          showToast(`Jira ${kind} erstellt: ${res.jiraKey}`);
           await loadIdeas();
         } else {
           try {
             await navigator.clipboard.writeText(res.markup || '');
-            showToast(`Jira-${issueType} in Zwischenablage kopiert.`);
+            showToast(`Jira-${kind} kopiert.`);
           } catch {
-            showToast(`Jira-${issueType} bereit.`);
+            showToast(`Jira-${kind} bereit.`);
           }
         }
       } catch (err) {
@@ -1403,9 +1594,13 @@ function init() {
       if (state.expandedId === id) {
         state.expandedId = null;
         state.expandedMentions = [];
+        state.activeMentionId = null;
+        state.showAllMentions = false;
       } else {
         state.expandedId = id;
+        state.showAllMentions = false;
         state.expandedMentions = await api(`/api/stories/${id}/mentions`).catch(() => []);
+        state.activeMentionId = state.expandedMentions[0]?.id ?? null;
       }
       state.pendingStatus = null;
       await loadIdeas();
@@ -1512,6 +1707,7 @@ function init() {
   });
 
   loadHealth();
+  loadSettings();
   loadIdeas();
   setInterval(loadHealth, 20000);
 }

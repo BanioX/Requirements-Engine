@@ -122,6 +122,7 @@ export async function initDatabase(pool) {
       feedback_note TEXT NOT NULL DEFAULT '',
       customer_ref TEXT NOT NULL DEFAULT '',
       channel TEXT NOT NULL DEFAULT '',
+      client_token TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -130,6 +131,7 @@ export async function initDatabase(pool) {
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS feedback_note TEXT NOT NULL DEFAULT '';
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS customer_ref TEXT NOT NULL DEFAULT '';
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT '';
+    ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS client_token TEXT NOT NULL DEFAULT '';
 
     -- Historische Meldungen sauber angleichen, falls Einträge vor story_mentions gezählt wurden
     INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, created_at)
@@ -155,6 +157,20 @@ export async function initDatabase(pool) {
 
 export function createPostgresStore(pool) {
   return {
+    async getSetting(key, fallback = '') {
+      const res = await pool.query(`SELECT value FROM app_meta WHERE key = $1`, [key]);
+      return res.rowCount > 0 ? res.rows[0].value : fallback;
+    },
+
+    async setSetting(key, value) {
+      await pool.query(
+        `INSERT INTO app_meta (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [key, String(value)]
+      );
+      return String(value);
+    },
+
     async checkHealth() {
       const start = Date.now();
       await pool.query('SELECT 1');
@@ -398,9 +414,10 @@ export function createPostgresStore(pool) {
       );
       const created = res.rows[0];
       const safeCustomer = typeof payload.customerRef === 'string' ? payload.customerRef.trim().slice(0, 100) : '';
+      const safeClient = typeof payload.clientToken === 'string' ? payload.clientToken.trim().slice(0, 64) : '';
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel, client_token)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           created.id,
           created.submitted_by || '',
@@ -408,7 +425,8 @@ export function createPostgresStore(pool) {
           safeRef,
           created.raw_feedback || '',
           safeCustomer,
-          created.channel || ''
+          created.channel || '',
+          safeClient
         ]
       );
       await pool.query(
@@ -436,7 +454,7 @@ export function createPostgresStore(pool) {
 
     async listStoryMentions(storyId, limit = 150) {
       const res = await pool.query(
-        `SELECT id, story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel, created_at
+        `SELECT id, story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel, client_token, created_at
          FROM story_mentions
          WHERE story_id = $1
          ORDER BY created_at DESC, id DESC
@@ -449,7 +467,15 @@ export function createPostgresStore(pool) {
     async upvoteStory(
       id,
       recalculated,
-      { recordedBy = '', durationSeconds = 60, interactionRef = '', feedbackNote = '', customerRef = '', channel = '' } = {}
+      {
+        recordedBy = '',
+        durationSeconds = 60,
+        interactionRef = '',
+        feedbackNote = '',
+        customerRef = '',
+        channel = '',
+        clientToken = ''
+      } = {}
     ) {
       const safeDur = Math.max(60, Math.min(28800, Math.round(Number(durationSeconds) || 60)));
       const safeRef = typeof interactionRef === 'string' ? interactionRef.trim().slice(0, 64) : '';
@@ -457,6 +483,7 @@ export function createPostgresStore(pool) {
       const safeCustomer = typeof customerRef === 'string' ? customerRef.trim().slice(0, 100) : '';
       const safeAuthor = typeof recordedBy === 'string' ? recordedBy.trim().slice(0, 80) : '';
       const safeChannel = typeof channel === 'string' ? channel.trim().slice(0, 40) : '';
+      const safeClient = typeof clientToken === 'string' ? clientToken.trim().slice(0, 64) : '';
 
       const existing = await pool.query(`SELECT interaction_refs_json FROM feedback_stories WHERE id = $1`, [id]);
       if (existing.rowCount === 0) return null;
@@ -486,9 +513,9 @@ export function createPostgresStore(pool) {
       );
       if (res.rowCount === 0) return null;
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7)`,
-        [id, safeAuthor, safeDur, safeRef, safeNote, safeCustomer, safeChannel]
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel, client_token)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, safeAuthor, safeDur, safeRef, safeNote, safeCustomer, safeChannel, safeClient]
       );
       return {
         ...res.rows[0],
@@ -496,7 +523,7 @@ export function createPostgresStore(pool) {
       };
     },
 
-    async recordDecisionFeedback(id, { sentiment, comment, author }) {
+    async recordDecisionFeedback(id, { sentiment, comment, author, clientToken = '' }) {
       const existing = await pool.query(`SELECT * FROM feedback_stories WHERE id = $1`, [id]);
       if (existing.rowCount === 0) return null;
       const list = Array.isArray(existing.rows[0].decision_feedback_json)
@@ -509,6 +536,7 @@ export function createPostgresStore(pool) {
               sentiment,
               comment,
               author: author || '',
+              clientToken: clientToken || '',
               createdAt: new Date().toISOString()
             }
           ]

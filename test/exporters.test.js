@@ -62,6 +62,6 @@ test('Markdown- und CSV-Export enthalten zentrale Story-Felder', () => {
   assert.match(md, /REQ-5/);
 
   const csv = storiesToCsv([story]);
-  assert.match(csv, /^ID;Datum;Idee von;Meldungen;Erfasste Zeit \(MM:SS\);Ø Dauer \(MM:SS\);Machbarkeit;Kanal;Titel;/);
-  assert.match(csv, /REQ-5;;;3;09:00;03:00;unbewertet;;TWINT-Limit vereinfachen;/);
+  assert.match(csv, /^ID;Datum;Idee von;Meldungen;Erfasste Zeit \(MM:SS\);Ø Dauer \(MM:SS\);Machbarkeit;Kanal;CRM \/ Ref-IDs;Titel;/);
+  assert.match(csv, /REQ-5;;;3;09:00;03:00;unbewertet;;;TWINT-Limit vereinfachen;/);
 });

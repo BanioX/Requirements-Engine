@@ -5,6 +5,7 @@ import { createApp } from '../src/app.js';
 function createMockStore({ dbHealthy = true } = {}) {
   const stories = [];
   const mentions = [];
+  const settings = new Map();
   const processes = [
     {
       id: 1,
@@ -25,6 +26,13 @@ function createMockStore({ dbHealthy = true } = {}) {
   const decisions = [];
 
   return {
+    async getSetting(key, fallback = '') {
+      return settings.has(key) ? settings.get(key) : fallback;
+    },
+    async setSetting(key, value) {
+      settings.set(key, String(value));
+      return String(value);
+    },
     async checkHealth() {
       if (!dbHealthy) throw new Error('DB connection refused');
       return {
@@ -112,6 +120,7 @@ function createMockStore({ dbHealthy = true } = {}) {
         feedback_note: s.raw_feedback,
         customer_ref: payload.customerRef || '',
         channel: s.channel,
+        client_token: payload.clientToken || '',
         created_at: s.created_at
       });
       return s;
@@ -122,7 +131,15 @@ function createMockStore({ dbHealthy = true } = {}) {
     async upvoteStory(
       id,
       recalculated,
-      { recordedBy = '', durationSeconds = 60, interactionRef = '', feedbackNote = '', customerRef = '', channel = '' } = {}
+      {
+        recordedBy = '',
+        durationSeconds = 60,
+        interactionRef = '',
+        feedbackNote = '',
+        customerRef = '',
+        channel = '',
+        clientToken = ''
+      } = {}
     ) {
       const s = stories.find((x) => x.id === id);
       if (!s) return null;
@@ -140,6 +157,7 @@ function createMockStore({ dbHealthy = true } = {}) {
         feedback_note: feedbackNote,
         customer_ref: customerRef,
         channel,
+        client_token: clientToken,
         created_at: new Date().toISOString()
       });
       return s;
@@ -325,6 +343,66 @@ test('Confluence-Erweiterbarkeit: EMBED_ALLOWED_ORIGINS setzt frame-ancestors ge
   });
 });
 
+test('Manager-Schutz: Wenn MANAGER_PIN gesetzt ist, sind Report & CSV für normale User gesperrt (HTTP 403)', async () => {
+  const app = createApp({
+    store: createMockStore({ dbHealthy: true }),
+    managerPin: 'test-pin-99'
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const deniedRep = await fetch(`${baseUrl}/api/report`);
+    assert.equal(deniedRep.status, 403);
+    const deniedCsv = await fetch(`${baseUrl}/api/stories/export/csv`);
+    assert.equal(deniedCsv.status, 403);
+
+    const okRep = await fetch(`${baseUrl}/api/report`, { headers: { 'x-manager-pin': 'test-pin-99' } });
+    assert.equal(okRep.status, 200);
+    const okCsv = await fetch(`${baseUrl}/api/stories/export/csv?pin=test-pin-99`);
+    assert.equal(okCsv.status, 200);
+  });
+});
+
+test('Chef-Schalter: Kommentar-Sichtbarkeit umschaltbar zwischen all und own_only', async () => {
+  const app = createApp({ store: createMockStore({ dbHealthy: true }) });
+
+  await withServer(app, async (baseUrl) => {
+    await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-client-token': 'user-a' },
+      body: JSON.stringify({ rawFeedback: 'User A meldet ein wiederkehrendes Problem beim Login.' })
+    });
+    await fetch(`${baseUrl}/api/stories/1/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-client-token': 'user-b' },
+      body: JSON.stringify({ durationText: '02:00', feedbackNote: 'Kommentar von User B' })
+    });
+
+    // Standard: Alle sehen alle (2 Einträge)
+    const allForA = await (await fetch(`${baseUrl}/api/stories/1/mentions`, { headers: { 'x-client-token': 'user-a' } })).json();
+    assert.equal(allForA.length, 2);
+
+    // Chef aktiviert 'own_only'
+    const patchRes = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commentsVisibility: 'own_only' })
+    });
+    assert.equal(patchRes.status, 200);
+
+    // User A sieht nur seinen eigenen Kommentar, User B nur seinen, Chef sieht alle 2
+    const onlyA = await (await fetch(`${baseUrl}/api/stories/1/mentions`, { headers: { 'x-client-token': 'user-a' } })).json();
+    const onlyB = await (await fetch(`${baseUrl}/api/stories/1/mentions`, { headers: { 'x-client-token': 'user-b' } })).json();
+    const chefAll = await (
+      await fetch(`${baseUrl}/api/stories/1/mentions`, { headers: { 'x-client-token': 'chef', 'x-manager-mode': '1' } })
+    ).json();
+
+    assert.equal(onlyA.length, 1);
+    assert.equal(onlyB.length, 1);
+    assert.equal(onlyB[0].feedback_note, 'Kommentar von User B');
+    assert.equal(chefAll.length, 2);
+  });
+});
+
 test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierbare Buchungen', async () => {
   const app = createApp({ store: createMockStore({ dbHealthy: true }) });
 
@@ -388,12 +466,14 @@ test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierba
     assert.equal(mentionsList[0].customer_ref, 'Muster AG');
     assert.equal(mentionsList[0].duration_seconds, 180);
 
-    const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&granularity=day&timeMode=measured`);
+    const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&granularity=day&timeMode=measured&hourlyRate=120`);
     assert.equal(res.status, 200);
     const rep = await res.json();
     assert.equal(rep.summary.totalStories, 1);
     assert.equal(rep.summary.totalMentions, 2);
     assert.equal(rep.summary.measuredSeconds, 450);
+    assert.equal(rep.savings.implementedCount, 0);
+    assert.equal(rep.savings.hourlyRate, 120);
     assert.equal(rep.summary.hasEstimated, false);
     assert.equal(rep.filters.granularity, 'day');
     assert.equal(rep.mentionsTimeline[0].bucket, '2026-11-25');

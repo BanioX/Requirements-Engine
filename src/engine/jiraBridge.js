@@ -11,22 +11,52 @@ export function mapPriorityToJira(moscow) {
   return 'Low';
 }
 
-export function buildJiraWikiMarkup(story, issueType = 'Story') {
+export function resolveJiraIssueType(story, requestedType) {
+  if (requestedType === 'Feature' || requestedType === 'Story') return requestedType;
+  return story.feasibility === 'aufwaendig' ? 'Feature' : 'Story';
+}
+
+export function buildJiraWikiMarkup(story, requestedType) {
+  const issueType = resolveJiraIssueType(story, requestedType);
   const tasks = Array.isArray(story.tasks_json) ? story.tasks_json : [];
   const criteria = Array.isArray(story.acceptance_criteria_json) ? story.acceptance_criteria_json : [];
+  const refs = Array.isArray(story.interaction_refs_json) ? story.interaction_refs_json : [];
   const postMentions = Number(story.post_decision_mentions) || 0;
+  const totalSec = Number(story.total_duration_seconds) || 0;
+  const durStr =
+    totalSec > 0
+      ? `${Math.floor(totalSec / 60)}m ${String(totalSec % 60).padStart(2, '0')}s`
+      : '';
+
+  const headerSection =
+    issueType === 'Feature'
+      ? [
+          `h2. Feature: ${story.title}`,
+          '',
+          'h3. Business-Case & Volumen',
+          `* *Erfasste Fälle:* ${story.votes || 1}x${postMentions > 0 ? ` (+${postMentions}x nach Ablehnung)` : ''}`,
+          durStr ? `* *Erfasster Zeitaufwand:* ${durStr}` : '',
+          `* *Anforderungstyp:* ${story.req_type || 'FA: Funktionale Anforderung'}`,
+          `* *Machbarkeit:* ${story.feasibility || 'unbewertet'}`,
+          story.submitted_by ? `* *Ideengeber:* ${story.submitted_by}` : '',
+          refs.length > 0 ? `* *CRM / Ref-IDs:* ${refs.map((r) => `#${r.ref}`).join(', ')}` : ''
+        ]
+      : [
+          `h2. Story: ${story.title}`,
+          '',
+          `{quote}${story.user_story}{quote}`,
+          '',
+          'h3. Kontext & Nachweis',
+          `* *Anforderungstyp:* ${story.req_type || 'FA: Funktionale Anforderung'}`,
+          `* *Erfasste Fälle:* ${story.votes || 1}x${durStr ? ` · Zeitaufwand: ${durStr}` : ''}`,
+          story.channel ? `* *Kanal:* ${story.channel}` : '',
+          `* *Machbarkeit:* ${story.feasibility || 'unbewertet'}`,
+          story.submitted_by ? `* *Ideengeber:* ${story.submitted_by}` : '',
+          refs.length > 0 ? `* *CRM / Ref-IDs:* ${refs.map((r) => `#${r.ref}`).join(', ')}` : ''
+        ];
 
   return [
-    `h2. ${issueType}: ${story.title}`,
-    '',
-    `{quote}${story.user_story}{quote}`,
-    '',
-    'h3. Ausgangslage & Mengen-Nachweis',
-    `* *Anforderungstyp:* ${story.req_type || 'FA: Funktionale Anforderung'}`,
-    `* *Eingegangene Meldungen:* ${story.votes || 1}x${postMentions > 0 ? ` (+${postMentions}x nach Ablehnung)` : ''}`,
-    story.channel ? `* *Kanal:* ${story.channel}` : '',
-    `* *Machbarkeit (Ampel):* ${story.feasibility || 'unbewertet'}`,
-    story.submitted_by ? `* *Idee / Vorschlag von:* ${story.submitted_by}` : '',
+    ...headerSection,
     story.internal_note ? `* *Systemlogik / Fachnotiz:* ${story.internal_note}` : '',
     '',
     'h3. Ursprüngliches Feedback',
@@ -90,7 +120,8 @@ export function storiesToJiraCsv(stories = [], defaultIssueType = 'Story') {
   return [header, ...rows].map((r) => r.map(escapeJiraCsv).join(',')).join('\r\n');
 }
 
-export async function pushStoryToJira(story, { issueType = 'Story', env = process.env, fetchImpl = fetch } = {}) {
+export async function pushStoryToJira(story, { issueType, env = process.env, fetchImpl = fetch } = {}) {
+  const resolvedType = resolveJiraIssueType(story, issueType);
   const baseUrl = String(env.JIRA_BASE_URL || '').replace(/\/+$/, '');
   const email = String(env.JIRA_EMAIL || '').trim();
   const apiToken = String(env.JIRA_API_TOKEN || '').trim();
@@ -99,13 +130,13 @@ export async function pushStoryToJira(story, { issueType = 'Story', env = proces
   if (!baseUrl || !email || !apiToken || !projectKey) {
     return {
       mode: 'clipboard',
-      issueType,
-      markup: buildJiraWikiMarkup(story, issueType),
+      issueType: resolvedType,
+      markup: buildJiraWikiMarkup(story, resolvedType),
       message: 'Jira-API nicht in .env konfiguriert — Jira-Markup bereit zum Einfügen.'
     };
   }
 
-  const payload = buildJiraRestPayload(story, { projectKey, issueType });
+  const payload = buildJiraRestPayload(story, { projectKey, issueType: resolvedType });
   const auth = Buffer.from(`${email}:${apiToken}`, 'utf8').toString('base64');
 
   const res = await fetchImpl(`${baseUrl}/rest/api/3/issue`, {
