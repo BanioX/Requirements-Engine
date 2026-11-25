@@ -26,6 +26,29 @@ function parsePositiveId(raw) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function parseDurationSeconds(rawSeconds, rawText) {
+  if (rawSeconds !== undefined && rawSeconds !== null && rawSeconds !== '') {
+    const n = Number(rawSeconds);
+    if (Number.isFinite(n) && n >= 0) {
+      return Math.min(28800, Math.round(n));
+    }
+  }
+  if (typeof rawText === 'string' && rawText.trim()) {
+    const cleaned = rawText.trim();
+    const parts = cleaned.split(':');
+    if (parts.length === 2) {
+      const m = Number(parts[0]);
+      const s = Number(parts[1]);
+      if (Number.isFinite(m) && Number.isFinite(s) && m >= 0 && s >= 0) {
+        return Math.min(28800, Math.round(m * 60 + s));
+      }
+    } else if (/^\d+$/.test(cleaned)) {
+      return Math.min(28800, Number(cleaned) * 60);
+    }
+  }
+  return 0;
+}
+
 function createWriteRateLimiter({ windowMs = 60_000, maxRequests = 120 } = {}) {
   const hits = new Map();
   return (req, res, next) => {
@@ -214,7 +237,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Management-Report API (Zeitraum 01.01.XXXX - 31.12.XXXX, querbeet filterbar, Ressourcen & Credits)
+  // Management-Report API (Zeitraum 01.01.XXXX - 31.12.XXXX, querbeet filterbar, echte M:S-Zeiten & Credits)
   app.get('/api/report', async (req, res, next) => {
     try {
       const isoDate = /^\d{4}-\d{2}-\d{2}$/;
@@ -222,15 +245,56 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const to = isoDate.test(String(req.query.to || '')) ? String(req.query.to) : null;
       const status = req.query.status ? String(req.query.status) : 'Alle';
       const feasibility = req.query.feasibility ? String(req.query.feasibility) : 'Alle';
-      const minutesPerRequest = Math.max(1, Math.min(60, Number(req.query.minutesPerRequest) || 6));
+      const granularity = ['day', 'week', 'month', 'year'].includes(String(req.query.granularity))
+        ? String(req.query.granularity)
+        : 'month';
+      const storyId = req.query.storyId ? parsePositiveId(req.query.storyId) : null;
+      const timeMode = req.query.timeMode === 'projected' ? 'projected' : 'measured';
+      const minutesPerRequest = Math.max(1, Math.min(60, Number(req.query.minutesPerRequest) || 5));
 
-      const data = await store.getReportData({ from, to, status, feasibility });
-      const stories = data.stories || [];
+      const data = await store.getReportData({ from, to, status, feasibility, granularity, storyId });
+      const rawStories = data.stories || [];
+      const mentionsTimeline = data.mentionsTimeline || data.mentionsByMonth || [];
+
+      const stories = rawStories.map((s) => {
+        const mentions = Number(s.period_mentions ?? s.votes ?? 1);
+        const measuredSeconds = Number(s.period_duration_seconds ?? s.total_duration_seconds ?? 0);
+        const timedMentions = Number(s.period_timed_mentions ?? s.timed_mentions ?? 0);
+        const avgSeconds = timedMentions > 0 ? Math.round(measuredSeconds / timedMentions) : 0;
+
+        let effectiveSeconds = measuredSeconds;
+        let isEstimated = false;
+        if (timeMode === 'projected') {
+          if (timedMentions > 0) {
+            effectiveSeconds = avgSeconds * mentions;
+            isEstimated = timedMentions < mentions;
+          } else {
+            effectiveSeconds = mentions * minutesPerRequest * 60;
+            isEstimated = true;
+          }
+        }
+
+        const effectiveHours = Math.round((effectiveSeconds / 3600) * 100) / 100;
+        return {
+          ...s,
+          report_mentions: mentions,
+          report_measured_seconds: measuredSeconds,
+          report_timed_mentions: timedMentions,
+          report_avg_seconds: avgSeconds,
+          report_effective_seconds: effectiveSeconds,
+          report_effective_hours: effectiveHours,
+          report_is_estimated: isEstimated
+        };
+      });
 
       const totalStories = stories.length;
-      const totalMentions = stories.reduce((sum, s) => sum + (Number(s.votes) || 1), 0);
-      const totalHours = Math.round(((totalMentions * minutesPerRequest) / 60) * 10) / 10;
-      const totalWorkdays = Math.round((totalHours / 8.2) * 10) / 10;
+      const totalMentions = stories.reduce((sum, s) => sum + s.report_mentions, 0);
+      const totalTimedMentions = stories.reduce((sum, s) => sum + s.report_timed_mentions, 0);
+      const measuredSeconds = stories.reduce((sum, s) => sum + s.report_measured_seconds, 0);
+      const effectiveSeconds = stories.reduce((sum, s) => sum + s.report_effective_seconds, 0);
+      const hasEstimated = stories.some((s) => s.report_is_estimated);
+      const totalHours = Math.round((effectiveSeconds / 3600) * 10) / 10;
+      const totalWorkdays = Math.round((effectiveSeconds / 3600 / 8.2) * 10) / 10;
 
       const byFeasibility = {
         einfach: stories.filter((s) => (s.feasibility || 'mittel') === 'einfach').length,
@@ -249,12 +313,12 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const creditsMap = new Map();
       for (const s of stories) {
         const ch = s.channel || 'E-Mail';
-        byChannelMap.set(ch, (byChannelMap.get(ch) || 0) + (Number(s.votes) || 1));
+        byChannelMap.set(ch, (byChannelMap.get(ch) || 0) + s.report_mentions);
 
         const author = (s.submitted_by || '').trim() || 'Nicht angegeben';
         const prev = creditsMap.get(author) || { name: author, ideas: 0, implemented: 0, mentions: 0 };
         prev.ideas += 1;
-        prev.mentions += Number(s.votes) || 1;
+        prev.mentions += s.report_mentions;
         if (s.status === 'Umgesetzt') prev.implemented += 1;
         creditsMap.set(author, prev);
       }
@@ -265,19 +329,21 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         .slice(0, 10);
 
       const topResourceDrivers = [...stories]
-        .sort((a, b) => (Number(b.votes) || 1) - (Number(a.votes) || 1))
+        .sort((a, b) => b.report_effective_seconds - a.report_effective_seconds || b.report_mentions - a.report_mentions)
         .slice(0, 6)
-        .map((s) => {
-          const count = Number(s.votes) || 1;
-          return {
-            id: s.id,
-            title: s.title,
-            feasibility: s.feasibility || 'mittel',
-            status: s.status,
-            mentions: count,
-            hours: Math.round(((count * minutesPerRequest) / 60) * 10) / 10
-          };
-        });
+        .map((s) => ({
+          id: s.id,
+          title: s.title,
+          feasibility: s.feasibility || 'mittel',
+          status: s.status,
+          mentions: s.report_mentions,
+          timedMentions: s.report_timed_mentions,
+          measuredSeconds: s.report_measured_seconds,
+          avgSeconds: s.report_avg_seconds,
+          effectiveSeconds: s.report_effective_seconds,
+          hours: Math.round((s.report_effective_seconds / 3600) * 10) / 10,
+          isEstimated: s.report_is_estimated
+        }));
 
       const implementationRate =
         totalStories > 0 ? Math.round((byStatus.erledigt / totalStories) * 100) : 0;
@@ -288,7 +354,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
           id: s.id,
           title: s.title,
           status: s.status,
-          totalMentions: Number(s.votes) || 1,
+          totalMentions: s.report_mentions,
           postDecisionMentions: Number(s.post_decision_mentions) || 0,
           decisionUp: Number(s.decision_up) || 0,
           decisionDown: Number(s.decision_down) || 0,
@@ -296,12 +362,21 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         }))
         .sort((a, b) => b.postDecisionMentions - a.postDecisionMentions || b.decisionDown - a.decisionDown);
 
+      const peakBucket =
+        mentionsTimeline.length > 0
+          ? [...mentionsTimeline].sort((a, b) => b.total - a.total)[0]
+          : null;
+
       res.json({
-        filters: { from, to, status, feasibility, minutesPerRequest },
+        filters: { from, to, status, feasibility, granularity, storyId, timeMode, minutesPerRequest },
         generatedAt: new Date().toISOString(),
         summary: {
           totalStories,
           totalMentions,
+          totalTimedMentions,
+          measuredSeconds,
+          effectiveSeconds,
+          hasEstimated,
           totalHours,
           totalWorkdays,
           implementationRate
@@ -309,7 +384,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         byFeasibility,
         byStatus,
         byChannel: [...byChannelMap.entries()].map(([channel, mentions]) => ({ channel, mentions })),
-        mentionsByMonth: data.mentionsByMonth || [],
+        mentionsTimeline,
+        peakBucket,
         topResourceDrivers,
         pressureItems,
         credits,
@@ -323,7 +399,20 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
   // Feedback einreichen -> automatisch übersetzen & speichern
   app.post('/api/stories', async (req, res, next) => {
     try {
-      const { rawFeedback, sourceRole, origin, channel, submittedBy, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
+      const {
+        rawFeedback,
+        sourceRole,
+        origin,
+        channel,
+        submittedBy,
+        feasibility,
+        feedbackType,
+        urgency,
+        processId,
+        dueDate,
+        durationSeconds,
+        durationText
+      } = req.body || {};
       if (typeof rawFeedback !== 'string' || rawFeedback.trim().length > 2000) {
         return res.status(400).json({ error: 'Feedback muss ein Text mit maximal 2000 Zeichen sein.' });
       }
@@ -331,6 +420,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const safeChannel = allowedChannels.has(channel) ? channel : 'E-Mail';
       const resolvedOrigin = origin || (safeChannel === 'Intern / Team' ? 'betrieb' : 'kunde');
       const safeAuthor = typeof submittedBy === 'string' ? submittedBy.trim().slice(0, 80) : '';
+      const parsedDuration = parseDurationSeconds(durationSeconds, durationText);
 
       const existing = await store.listStories();
       const analyzed = analyzeFeedback({
@@ -347,6 +437,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         processId: processId ? parsePositiveId(processId) : null,
         channel: safeChannel,
         submittedBy: safeAuthor,
+        durationSeconds: parsedDuration,
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -374,7 +465,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Mengen-Zähler (+1 oder +10 bei Massenthemen) mit automatischer Impact-Neuberechnung
+  // Quantifizierbare Meldungen (+1 bis +1000) optional mit echter Dauer (M:S / Sekunden pro Fall)
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
@@ -383,7 +474,9 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
 
       const rawDelta = Number(req.body?.delta ?? 1);
-      const delta = Number.isInteger(rawDelta) && rawDelta >= 1 && rawDelta <= 100 ? rawDelta : 1;
+      const delta = Number.isInteger(rawDelta) && rawDelta >= 1 && rawDelta <= 1000 ? rawDelta : 1;
+      const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
+      const durationPerItem = parseDurationSeconds(req.body?.durationSeconds, req.body?.durationText);
 
       const recalculated = scoreAndPrioritize({
         rawText: current.raw_feedback,
@@ -394,7 +487,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
       });
 
-      const updated = await store.upvoteStory(id, recalculated, delta);
+      const updated = await store.upvoteStory(id, recalculated, delta, recordedBy, durationPerItem);
       res.json(updated);
     } catch (err) {
       next(err);

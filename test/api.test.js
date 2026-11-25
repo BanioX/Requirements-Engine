@@ -69,6 +69,7 @@ function createMockStore({ dbHealthy = true } = {}) {
       return stories.find((s) => s.id === id) || null;
     },
     async createStory(payload) {
+      const dur = Number(payload.durationSeconds) || 0;
       const s = {
         id: stories.length + 1,
         origin: payload.origin || 'kunde',
@@ -86,6 +87,8 @@ function createMockStore({ dbHealthy = true } = {}) {
         size_estimate: payload.sizeEstimate,
         priority_score: payload.priorityScore,
         votes: 1,
+        total_duration_seconds: dur,
+        timed_mentions: dur > 0 ? 1 : 0,
         tasks_json: payload.tasks,
         acceptance_criteria_json: payload.acceptanceCriteria,
         status: 'Eingang',
@@ -99,10 +102,26 @@ function createMockStore({ dbHealthy = true } = {}) {
       stories.push(s);
       return s;
     },
-    async getReportData() {
+    async upvoteStory(id, recalculated, delta = 1, _recordedBy = '', durationSecondsPerItem = 0) {
+      const s = stories.find((x) => x.id === id);
+      if (!s) return null;
+      s.votes += delta;
+      s.total_duration_seconds += durationSecondsPerItem * delta;
+      if (durationSecondsPerItem > 0) s.timed_mentions += delta;
+      s.priority_score = recalculated.score;
+      return s;
+    },
+    async getReportData({ granularity = 'month' } = {}) {
+      const bucket = granularity === 'day' ? '2026-11-25' : granularity === 'week' ? '2026-KW48' : granularity === 'year' ? '2026' : '2026-11';
       return {
         stories,
-        mentionsByMonth: [{ month: '2026-11', total: stories.reduce((a, b) => a + b.votes, 0) }]
+        mentionsTimeline: [
+          {
+            bucket,
+            total: stories.reduce((a, b) => a + b.votes, 0),
+            duration_seconds: stories.reduce((a, b) => a + (b.total_duration_seconds || 0), 0)
+          }
+        ]
       };
     },
     async deleteStory(id) {
@@ -273,25 +292,44 @@ test('Confluence-Erweiterbarkeit: EMBED_ALLOWED_ORIGINS setzt frame-ancestors ge
   });
 });
 
-test('GET /api/report berechnet Ressourcen-Stunden, Credits und Ampel-Kennzahlen', async () => {
+test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierbare Buchungen', async () => {
   const app = createApp({ store: createMockStore({ dbHealthy: true }) });
 
   await withServer(app, async (baseUrl) => {
-    await fetch(`${baseUrl}/api/stories`, {
+    const createRes = await fetch(`${baseUrl}/api/stories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         rawFeedback: 'Sprache im Portal springt nach jeder Sitzung wieder auf Englisch zurück.',
-        channel: 'E-Mail',
-        submittedBy: 'Anna Beispiel'
+        channel: 'Telefon',
+        submittedBy: 'Anna Beispiel',
+        durationText: '04:30'
       })
     });
+    assert.equal(createRes.status, 201);
+    const created = await createRes.json();
+    assert.equal(created.story.total_duration_seconds, 270);
 
-    const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&minutesPerRequest=10`);
+    // Quantifizierbare Nachbuchung: 4 weitere Fälle à 03:00 (720 s) -> gesamt 990 s aus 5 Fällen
+    const voteRes = await fetch(`${baseUrl}/api/stories/1/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta: 4, durationText: '3:00' })
+    });
+    assert.equal(voteRes.status, 200);
+    const voted = await voteRes.json();
+    assert.equal(voted.votes, 5);
+    assert.equal(voted.total_duration_seconds, 990);
+
+    const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&granularity=day&timeMode=measured`);
     assert.equal(res.status, 200);
     const rep = await res.json();
     assert.equal(rep.summary.totalStories, 1);
-    assert.equal(rep.summary.totalMentions, 1);
+    assert.equal(rep.summary.totalMentions, 5);
+    assert.equal(rep.summary.measuredSeconds, 990);
+    assert.equal(rep.summary.hasEstimated, false);
+    assert.equal(rep.filters.granularity, 'day');
+    assert.equal(rep.mentionsTimeline[0].bucket, '2026-11-25');
     assert.equal(rep.credits[0].name, 'Anna Beispiel');
 
     const fbRes = await fetch(`${baseUrl}/api/stories/1/decision-feedback`, {

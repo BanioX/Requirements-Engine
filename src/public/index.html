@@ -3,22 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Requirements Engine</title>
+  <meta name="theme-color" content="#000000" />
+  <meta name="color-scheme" content="dark" />
+  <title>ONESTRAND · Requirements Engine</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="topbar no-print">
     <div class="shell topbar-inner">
-      <a href="#" class="brand" id="brand-link">
-        <span class="brand-mark" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 2l4 4-4 4"/>
-            <path d="M3 11v-1a4 4 0 0 1 4-4h14"/>
-            <path d="M7 22l-4-4 4-4"/>
-            <path d="M21 13v1a4 4 0 0 1-4 4H3"/>
-          </svg>
+      <a href="#" class="brand" id="brand-link" aria-label="ONESTRAND Requirements Engine">
+        <span class="os-mark" data-mark>
+          <img src="/assets/mark.svg" alt="" width="40" height="26" />
+          <canvas aria-hidden="true"></canvas>
         </span>
-        <span class="brand-name">Requirements Engine</span>
+        <span class="brand-lockup">
+          <span class="brand-os">ONESTRAND</span>
+          <span class="brand-sep" aria-hidden="true">/</span>
+          <span class="brand-prod">Requirements Engine</span>
+        </span>
       </a>
 
       <div class="topbar-right">
@@ -35,7 +38,7 @@
   <main class="shell main-wrap">
     <div id="toast" class="toast hidden no-print" role="status" aria-live="polite"></div>
 
-    <!-- ANSICHT A: ULTRA-MINIMALISTISCHES BOARD -->
+    <!-- ANSICHT A: ONESTRAND BOARD -->
     <div id="board-view">
       <form id="feedback-form" class="composer">
         <textarea
@@ -53,6 +56,7 @@
               <button type="button" class="ch-btn" data-channel="Intern / Team">Intern</button>
             </div>
             <input type="text" id="fb-author" class="author-input" placeholder="Vorname Nachname" aria-label="Idee / Vorschlag von" />
+            <div id="composer-dur-slot"></div>
           </div>
           <button type="submit" class="btn-primary">Erfassen</button>
         </div>
@@ -84,7 +88,10 @@
             <input type="date" id="rep-from" aria-label="Von Datum" />
             <span class="sep">–</span>
             <input type="date" id="rep-to" aria-label="Bis Datum" />
-            <button type="button" class="st-btn" id="rep-year-curr">Aktuelles Jahr</button>
+            <button type="button" class="st-btn" id="rep-range-today">Heute</button>
+            <button type="button" class="st-btn" id="rep-range-7d">7 T.</button>
+            <button type="button" class="st-btn" id="rep-range-30d">30 T.</button>
+            <button type="button" class="st-btn active" id="rep-year-curr">Jahr</button>
             <button type="button" class="st-btn" id="rep-year-prev">Vorjahr</button>
           </div>
           <div class="report-actions">
@@ -94,6 +101,13 @@
         </div>
 
         <div class="report-control-row">
+          <div class="status-group" id="rep-gran-pills" role="group" aria-label="Zeitauflösung">
+            <button type="button" class="st-btn" data-rep-gran="day">Pro Tag</button>
+            <button type="button" class="st-btn" data-rep-gran="week">Pro Woche</button>
+            <button type="button" class="st-btn active" data-rep-gran="month">Pro Monat</button>
+            <button type="button" class="st-btn" data-rep-gran="year">Pro Jahr</button>
+          </div>
+
           <div class="ampel-group" id="rep-feas-pills" role="group" aria-label="Ampel Filter">
             <button type="button" class="ampel-btn active" data-rep-feas="Alle">Alle</button>
             <button type="button" class="ampel-btn" data-rep-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
@@ -108,12 +122,20 @@
             <button type="button" class="st-btn" data-rep-status="Offen">Offen</button>
             <button type="button" class="st-btn" data-rep-status="Abgelehnt">Abgelehnt</button>
           </div>
+        </div>
 
-          <div class="status-group" id="rep-min-pills" role="group" aria-label="Minuten pro Anfrage">
-            <span class="sep" style="font-size:0.75rem;">Ø Zeit/Anfrage:</span>
-            <button type="button" class="st-btn active" data-rep-min="6">6 Min</button>
-            <button type="button" class="st-btn" data-rep-min="10">10 Min</button>
-            <button type="button" class="st-btn" data-rep-min="15">15 Min</button>
+        <div class="report-control-row">
+          <div class="status-group" id="rep-timemode-pills" role="group" aria-label="Zeitbasis">
+            <span class="sep" style="font-size:0.75rem;">Zeitbasis:</span>
+            <button type="button" class="st-btn active" data-rep-timemode="measured">Echt erfasst (M:S)</button>
+            <button type="button" class="st-btn" data-rep-timemode="projected">Hochrechnung (~)</button>
+          </div>
+
+          <div class="status-group hidden" id="rep-min-pills" role="group" aria-label="Fallback-Richtwert">
+            <span class="sep" style="font-size:0.75rem;">Fallback falls leer:</span>
+            <button type="button" class="st-btn active" data-rep-min="5">5m</button>
+            <button type="button" class="st-btn" data-rep-min="10">10m</button>
+            <button type="button" class="st-btn" data-rep-min="15">15m</button>
           </div>
         </div>
       </div>
@@ -124,7 +146,12 @@
 
   <footer class="ops-bar no-print" aria-label="Systemstatus">
     <div class="shell ops-inner">
-      <span class="ops-item"><span class="pulse-dot" id="ops-dot"></span><span id="ops-db">DB…</span></span>
+      <span class="ops-item">
+        <a href="https://onestrand.ch/" target="_blank" rel="noopener" class="ops-brand">ONESTRAND</a>
+        <span>·</span>
+        <span class="pulse-dot" id="ops-dot"></span>
+        <span id="ops-db">DB…</span>
+      </span>
       <span class="ops-item" id="ops-counts">0 Einträge</span>
       <span class="ops-item">
         <span id="ops-version">–</span>
@@ -134,6 +161,7 @@
     </div>
   </footer>
 
+  <script type="module" src="/assets/onestrand-mark.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

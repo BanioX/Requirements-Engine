@@ -117,12 +117,22 @@ function escapeCsvCell(value) {
   return str;
 }
 
+function formatSecondsMMSS(totalSec) {
+  const sec = Math.max(0, Math.round(Number(totalSec) || 0));
+  if (sec === 0) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export function storiesToCsv(stories = []) {
   const header = [
     'ID',
     'Datum',
     'Idee von',
     'Meldungen',
+    'Erfasste Zeit (MM:SS)',
+    'Ø Dauer (MM:SS)',
     'Machbarkeit',
     'Kanal',
     'Titel',
@@ -132,20 +142,27 @@ export function storiesToCsv(stories = []) {
     'Kunden-Wording',
     'Systemlogik / Dev'
   ];
-  const rows = stories.map((s) => [
-    `REQ-${s.id}`,
-    s.created_at ? String(s.created_at).slice(0, 10) : '',
-    s.submitted_by || '',
-    s.votes ?? 1,
-    s.feasibility || 'mittel',
-    s.channel || 'E-Mail',
-    s.title,
-    s.status,
-    s.priority_score,
-    s.user_story,
-    s.public_response || s.decision_reason || '',
-    s.internal_note || ''
-  ]);
+  const rows = stories.map((s) => {
+    const totalSec = Number(s.period_duration_seconds ?? s.total_duration_seconds ?? 0);
+    const timed = Number(s.period_timed_mentions ?? s.timed_mentions ?? 0);
+    const avgSec = timed > 0 ? Math.round(totalSec / timed) : 0;
+    return [
+      `REQ-${s.id}`,
+      s.created_at ? String(s.created_at).slice(0, 10) : '',
+      s.submitted_by || '',
+      s.period_mentions ?? s.votes ?? 1,
+      formatSecondsMMSS(totalSec),
+      formatSecondsMMSS(avgSec),
+      s.feasibility || 'mittel',
+      s.channel || 'E-Mail',
+      s.title,
+      s.status,
+      s.priority_score,
+      s.user_story,
+      s.public_response || s.decision_reason || '',
+      s.internal_note || ''
+    ];
+  });
 
   return [header, ...rows].map((row) => row.map(escapeCsvCell).join(';')).join('\r\n');
 }

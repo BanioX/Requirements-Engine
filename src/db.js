@@ -104,6 +104,8 @@ export async function initDatabase(pool) {
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decision_feedback_json JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS jira_key TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS jira_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS total_duration_seconds INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS timed_mentions INTEGER NOT NULL DEFAULT 0;
 
     UPDATE feedback_stories
     SET decided_at = updated_at
@@ -114,8 +116,20 @@ export async function initDatabase(pool) {
       story_id INTEGER NOT NULL REFERENCES feedback_stories(id) ON DELETE CASCADE,
       delta INTEGER NOT NULL DEFAULT 1,
       recorded_by TEXT NOT NULL DEFAULT '',
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER NOT NULL DEFAULT 0;
+
+    -- Historische Meldungen sauber angleichen, falls Einträge vor story_mentions gezählt wurden
+    INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, created_at)
+    SELECT f.id, (f.votes - COALESCE(m.sum_delta, 0)), f.submitted_by, 0, f.created_at
+    FROM feedback_stories f
+    LEFT JOIN (
+      SELECT story_id, SUM(delta)::int AS sum_delta FROM story_mentions GROUP BY story_id
+    ) m ON m.story_id = f.id
+    WHERE f.votes > COALESCE(m.sum_delta, 0);
 
     CREATE TABLE IF NOT EXISTS decision_log (
       id SERIAL PRIMARY KEY,
@@ -338,10 +352,12 @@ export function createPostgresStore(pool) {
     },
 
     async createStory(payload) {
+      const safeDur = Math.max(0, Math.min(28800, Math.round(Number(payload.durationSeconds) || 0)));
+      const timed = safeDur > 0 ? 1 : 0;
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16::jsonb,$17::jsonb,'Eingang',$18)
+         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,'Eingang',$20)
          RETURNING *`,
         [
           payload.processId || null,
@@ -359,6 +375,8 @@ export function createPostgresStore(pool) {
           payload.moscow,
           payload.sizeEstimate,
           payload.priorityScore,
+          safeDur,
+          timed,
           JSON.stringify(payload.tasks),
           JSON.stringify(payload.acceptanceCriteria),
           payload.dueDate || null
@@ -366,8 +384,8 @@ export function createPostgresStore(pool) {
       );
       const created = res.rows[0];
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by) VALUES ($1, 1, $2)`,
-        [created.id, created.submitted_by || '']
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds) VALUES ($1, 1, $2, $3)`,
+        [created.id, created.submitted_by || '', safeDur]
       );
       await pool.query(
         `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
@@ -392,8 +410,11 @@ export function createPostgresStore(pool) {
       return true;
     },
 
-    async upvoteStory(id, recalculated, delta = 1, recordedBy = '') {
-      const safeDelta = Math.max(1, Math.min(100, Number(delta) || 1));
+    async upvoteStory(id, recalculated, delta = 1, recordedBy = '', durationSecondsPerItem = 0) {
+      const safeDelta = Math.max(1, Math.min(1000, Math.round(Number(delta) || 1)));
+      const safePerItem = Math.max(0, Math.min(28800, Math.round(Number(durationSecondsPerItem) || 0)));
+      const addedDuration = safePerItem * safeDelta;
+      const addedTimed = safePerItem > 0 ? safeDelta : 0;
       const res = await pool.query(
         `UPDATE feedback_stories
          SET votes = votes + $4,
@@ -401,17 +422,19 @@ export function createPostgresStore(pool) {
                WHEN status = 'Abgelehnt' THEN post_decision_mentions + $4
                ELSE post_decision_mentions
              END,
+             total_duration_seconds = total_duration_seconds + $5,
+             timed_mentions = timed_mentions + $6,
              priority_score = $1,
              moscow = $2,
              size_estimate = $3,
              updated_at = NOW()
-         WHERE id = $5 RETURNING *`,
-        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, id]
+         WHERE id = $7 RETURNING *`,
+        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, addedDuration, addedTimed, id]
       );
       if (res.rowCount === 0) return null;
       await pool.query(
-        `INSERT INTO story_mentions (story_id, delta, recorded_by) VALUES ($1, $2, $3)`,
-        [id, safeDelta, recordedBy || '']
+        `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds) VALUES ($1, $2, $3, $4)`,
+        [id, safeDelta, recordedBy || '', addedDuration]
       );
       return {
         ...res.rows[0],
@@ -468,18 +491,32 @@ export function createPostgresStore(pool) {
       };
     },
 
-    async getReportData({ from, to, status, feasibility } = {}) {
+    async getReportData({ from, to, status, feasibility, granularity = 'month', storyId = null } = {}) {
       const clauses = [];
       const params = [];
+      const mentionDateClauses = [];
 
       if (from) {
         params.push(from);
-        clauses.push(`f.created_at >= $${params.length}::date`);
+        const idx = params.length;
+        mentionDateClauses.push(`m.created_at >= $${idx}::date`);
       }
       if (to) {
         params.push(to);
-        clauses.push(`f.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+        const idx = params.length;
+        mentionDateClauses.push(`m.created_at < ($${idx}::date + INTERVAL '1 day')`);
       }
+
+      if (from && to) {
+        clauses.push(
+          `((f.created_at >= $1::date AND f.created_at < ($2::date + INTERVAL '1 day')) OR COALESCE(mp.period_mentions, 0) > 0)`
+        );
+      } else if (from) {
+        clauses.push(`(f.created_at >= $1::date OR COALESCE(mp.period_mentions, 0) > 0)`);
+      } else if (to) {
+        clauses.push(`(f.created_at < ($1::date + INTERVAL '1 day') OR COALESCE(mp.period_mentions, 0) > 0)`);
+      }
+
       if (status && status !== 'Alle') {
         if (status === 'Offen') {
           clauses.push(`f.status IN ('Eingang', 'Geprüft', 'Bereit')`);
@@ -495,17 +532,43 @@ export function createPostgresStore(pool) {
         clauses.push(`f.feasibility = $${params.length}`);
       }
 
+      const mentionJoinWhere = mentionDateClauses.length > 0 ? `WHERE ${mentionDateClauses.join(' AND ')}` : '';
       const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
       const storiesRes = await pool.query(
-        `SELECT f.*
+        `SELECT f.*,
+                COALESCE(mp.period_mentions, f.votes)::int AS period_mentions,
+                COALESCE(mp.period_duration_seconds, 0)::int AS period_duration_seconds,
+                COALESCE(mp.period_timed_mentions, 0)::int AS period_timed_mentions
          FROM feedback_stories f
+         LEFT JOIN (
+           SELECT m.story_id,
+                  SUM(m.delta)::int AS period_mentions,
+                  SUM(m.duration_seconds)::int AS period_duration_seconds,
+                  SUM(CASE WHEN m.duration_seconds > 0 THEN m.delta ELSE 0 END)::int AS period_timed_mentions
+           FROM story_mentions m
+           ${mentionJoinWhere}
+           GROUP BY m.story_id
+         ) mp ON mp.story_id = f.id
          ${whereSql}
-         ORDER BY f.votes DESC, f.priority_score DESC, f.created_at DESC`,
+         ORDER BY COALESCE(mp.period_duration_seconds, 0) DESC, COALESCE(mp.period_mentions, f.votes) DESC, f.created_at DESC`,
         params
       );
 
-      const storyIds = storiesRes.rows.map((r) => r.id);
-      let mentionsByMonth = [];
+      const allowedGranularity = {
+        day: { trunc: 'day', fmt: 'YYYY-MM-DD' },
+        week: { trunc: 'week', fmt: 'IYYY-"KW"IW' },
+        month: { trunc: 'month', fmt: 'YYYY-MM' },
+        year: { trunc: 'year', fmt: 'YYYY' }
+      };
+      const gran = allowedGranularity[granularity] || allowedGranularity.month;
+
+      const targetStories = storyId
+        ? storiesRes.rows.filter((r) => r.id === Number(storyId))
+        : storiesRes.rows;
+      const storyIds = targetStories.map((r) => r.id);
+
+      let mentionsTimeline = [];
       if (storyIds.length > 0) {
         const mParams = [storyIds];
         const mClauses = ['story_id = ANY($1::int[])'];
@@ -518,32 +581,21 @@ export function createPostgresStore(pool) {
           mClauses.push(`created_at < ($${mParams.length}::date + INTERVAL '1 day')`);
         }
         const mRes = await pool.query(
-          `SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
-                  COALESCE(SUM(delta), 0)::int AS total
+          `SELECT TO_CHAR(DATE_TRUNC('${gran.trunc}', created_at), '${gran.fmt}') AS bucket,
+                  COALESCE(SUM(delta), 0)::int AS total,
+                  COALESCE(SUM(duration_seconds), 0)::int AS duration_seconds
            FROM story_mentions
            WHERE ${mClauses.join(' AND ')}
            GROUP BY 1
            ORDER BY 1 ASC`,
           mParams
         );
-        mentionsByMonth = mRes.rows;
-
-        // Fallback für Einträge ohne historische story_mentions-Zeilen
-        if (mentionsByMonth.length === 0) {
-          const fallbackMap = new Map();
-          for (const s of storiesRes.rows) {
-            const m = String(s.created_at || new Date().toISOString()).slice(0, 7);
-            fallbackMap.set(m, (fallbackMap.get(m) || 0) + (Number(s.votes) || 1));
-          }
-          mentionsByMonth = [...fallbackMap.entries()]
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([month, total]) => ({ month, total }));
-        }
+        mentionsTimeline = mRes.rows;
       }
 
       return {
         stories: storiesRes.rows,
-        mentionsByMonth
+        mentionsTimeline
       };
     },
 
