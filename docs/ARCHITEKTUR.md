@@ -13,8 +13,8 @@ flowchart LR
   end
 
   subgraph GitHub["GitHub (Cloud)"]
-    Repo["GitHub-Repository\nBanioX/requirements-engine\n(Branch: main)"]
-    Actions["GitHub Actions\n(Tests + Multi-Arch Build\nlinux/amd64 & linux/arm64)"]
+    Repo["GitHub-Repository\nBanioX/Requirements-Engine\n(Branch: main)"]
+    Actions["GitHub Actions\n(Tests + Secret-Scan + Multi-Arch Build\nlinux/amd64 & linux/arm64)"]
     GHCR["GitHub Container Registry\nghcr.io/baniox/requirements-engine"]
   end
 
