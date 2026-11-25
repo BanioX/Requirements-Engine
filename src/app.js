@@ -8,6 +8,7 @@ import {
   storiesToCsv,
   storyToMarkdown
 } from './engine/exporters.js';
+import { pushStoryToJira, storiesToJiraCsv } from './engine/jiraBridge.js';
 
 const ALLOWED_DECISION_STATUSES = new Set([
   'Eingang',
@@ -281,6 +282,20 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const implementationRate =
         totalStories > 0 ? Math.round((byStatus.erledigt / totalStories) * 100) : 0;
 
+      const pressureItems = stories
+        .filter((s) => (Number(s.post_decision_mentions) || 0) > 0 || (Number(s.decision_down) || 0) > (Number(s.decision_up) || 0))
+        .map((s) => ({
+          id: s.id,
+          title: s.title,
+          status: s.status,
+          totalMentions: Number(s.votes) || 1,
+          postDecisionMentions: Number(s.post_decision_mentions) || 0,
+          decisionUp: Number(s.decision_up) || 0,
+          decisionDown: Number(s.decision_down) || 0,
+          feedbackCount: Array.isArray(s.decision_feedback_json) ? s.decision_feedback_json.length : 0
+        }))
+        .sort((a, b) => b.postDecisionMentions - a.postDecisionMentions || b.decisionDown - a.decisionDown);
+
       res.json({
         filters: { from, to, status, feasibility, minutesPerRequest },
         generatedAt: new Date().toISOString(),
@@ -296,6 +311,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         byChannel: [...byChannelMap.entries()].map(([channel, mentions]) => ({ channel, mentions })),
         mentionsByMonth: data.mentionsByMonth || [],
         topResourceDrivers,
+        pressureItems,
         credits,
         stories
       });
@@ -469,6 +485,61 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       res.json(updated);
     } catch (err) {
       next(err);
+    }
+  });
+
+  // Zufriedenheits-Voting & Rückmeldung zu einem getroffenen Entscheid (👍 / 👎 + Kommentar)
+  app.post('/api/stories/:id/decision-feedback', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const { sentiment, comment, author } = req.body || {};
+      if (!['up', 'down'].includes(sentiment)) {
+        return res.status(400).json({ error: 'Sentiment muss up oder down sein.' });
+      }
+      const cleanComment = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
+      const cleanAuthor = typeof author === 'string' ? author.trim().slice(0, 80) : '';
+      const updated = await store.recordDecisionFeedback(id, {
+        sentiment,
+        comment: cleanComment,
+        author: cleanAuthor
+      });
+      if (!updated) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Jira-kompatibler CSV-Export (Issues -> Import Issues from CSV als Story/Feature)
+  app.get('/api/stories/export/jira-csv', async (_req, res, next) => {
+    try {
+      const stories = await store.listStories();
+      const csv = `\uFEFF${storiesToJiraCsv(stories)}`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="requirements-engine-jira-import.csv"');
+      res.send(csv);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Einzelne Anforderung direkt als Jira Story oder Feature übertragen (REST API v3 oder Markup-Fallback)
+  app.post('/api/stories/:id/jira', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const story = await store.getStoryById(id);
+      if (!story) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      const issueType = req.body?.issueType === 'Feature' ? 'Feature' : 'Story';
+
+      const result = await pushStoryToJira(story, { issueType });
+      if (result.mode === 'api' && store.setStoryJiraLink) {
+        await store.setStoryJiraLink(id, { jiraKey: result.jiraKey, jiraUrl: result.jiraUrl });
+      }
+      res.json(result);
+    } catch (err) {
+      res.status(502).json({ error: err.message });
     }
   });
 

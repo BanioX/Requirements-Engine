@@ -30,6 +30,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-reqengine}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in .env setzen (siehe .env.example)}"
       EMBED_ALLOWED_ORIGINS: ${EMBED_ALLOWED_ORIGINS:-}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     labels:

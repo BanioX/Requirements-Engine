@@ -97,6 +97,17 @@ export async function initDatabase(pool) {
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'mittel';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS public_response TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT '';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS post_decision_mentions INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decision_up INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decision_down INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS decision_feedback_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS jira_key TEXT NOT NULL DEFAULT '';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS jira_url TEXT NOT NULL DEFAULT '';
+
+    UPDATE feedback_stories
+    SET decided_at = updated_at
+    WHERE decided_at IS NULL AND status IN ('Abgelehnt', 'Umgesetzt', 'In Arbeit', 'Angenommen');
 
     CREATE TABLE IF NOT EXISTS story_mentions (
       id SERIAL PRIMARY KEY,
@@ -385,7 +396,15 @@ export function createPostgresStore(pool) {
       const safeDelta = Math.max(1, Math.min(100, Number(delta) || 1));
       const res = await pool.query(
         `UPDATE feedback_stories
-         SET votes = votes + $4, priority_score = $1, moscow = $2, size_estimate = $3, updated_at = NOW()
+         SET votes = votes + $4,
+             post_decision_mentions = CASE
+               WHEN status = 'Abgelehnt' THEN post_decision_mentions + $4
+               ELSE post_decision_mentions
+             END,
+             priority_score = $1,
+             moscow = $2,
+             size_estimate = $3,
+             updated_at = NOW()
          WHERE id = $5 RETURNING *`,
         [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, id]
       );
@@ -394,6 +413,55 @@ export function createPostgresStore(pool) {
         `INSERT INTO story_mentions (story_id, delta, recorded_by) VALUES ($1, $2, $3)`,
         [id, safeDelta, recordedBy || '']
       );
+      return {
+        ...res.rows[0],
+        trafficLight: calculateTrafficLight(res.rows[0].due_date)
+      };
+    },
+
+    async recordDecisionFeedback(id, { sentiment, comment, author }) {
+      const existing = await pool.query(`SELECT * FROM feedback_stories WHERE id = $1`, [id]);
+      if (existing.rowCount === 0) return null;
+      const list = Array.isArray(existing.rows[0].decision_feedback_json)
+        ? existing.rows[0].decision_feedback_json
+        : [];
+      const updatedList = comment
+        ? [
+            ...list.slice(-29),
+            {
+              sentiment,
+              comment,
+              author: author || '',
+              createdAt: new Date().toISOString()
+            }
+          ]
+        : list;
+
+      const upInc = sentiment === 'up' ? 1 : 0;
+      const downInc = sentiment === 'down' ? 1 : 0;
+      const res = await pool.query(
+        `UPDATE feedback_stories
+         SET decision_up = decision_up + $1,
+             decision_down = decision_down + $2,
+             decision_feedback_json = $3::jsonb,
+             updated_at = NOW()
+         WHERE id = $4 RETURNING *`,
+        [upInc, downInc, JSON.stringify(updatedList), id]
+      );
+      return {
+        ...res.rows[0],
+        trafficLight: calculateTrafficLight(res.rows[0].due_date)
+      };
+    },
+
+    async setStoryJiraLink(id, { jiraKey, jiraUrl }) {
+      const res = await pool.query(
+        `UPDATE feedback_stories
+         SET jira_key = $1, jira_url = $2, updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [jiraKey || '', jiraUrl || '', id]
+      );
+      if (res.rowCount === 0) return null;
       return {
         ...res.rows[0],
         trafficLight: calculateTrafficLight(res.rows[0].due_date)
@@ -459,6 +527,18 @@ export function createPostgresStore(pool) {
           mParams
         );
         mentionsByMonth = mRes.rows;
+
+        // Fallback für Einträge ohne historische story_mentions-Zeilen
+        if (mentionsByMonth.length === 0) {
+          const fallbackMap = new Map();
+          for (const s of storiesRes.rows) {
+            const m = String(s.created_at || new Date().toISOString()).slice(0, 7);
+            fallbackMap.set(m, (fallbackMap.get(m) || 0) + (Number(s.votes) || 1));
+          }
+          mentionsByMonth = [...fallbackMap.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([month, total]) => ({ month, total }));
+        }
       }
 
       return {
@@ -532,6 +612,8 @@ export function createPostgresStore(pool) {
              decision_reason = $2,
              public_response = $3,
              internal_note = $4,
+             decided_at = NOW(),
+             post_decision_mentions = CASE WHEN $1 = 'Abgelehnt' THEN 0 ELSE post_decision_mentions END,
              due_date = COALESCE($5, due_date),
              updated_at = NOW()
          WHERE id = $6 RETURNING *`,

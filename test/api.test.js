@@ -121,6 +121,15 @@ function createMockStore({ dbHealthy = true } = {}) {
       decisions.push({ id: decisions.length + 1, entity_type: 'story', entity_id: id, action: status, reason: s.public_response });
       return s;
     },
+    async recordDecisionFeedback(id, { sentiment, comment, author }) {
+      const s = stories.find((x) => x.id === id);
+      if (!s) return null;
+      if (sentiment === 'up') s.decision_up = (s.decision_up || 0) + 1;
+      if (sentiment === 'down') s.decision_down = (s.decision_down || 0) + 1;
+      s.decision_feedback_json = s.decision_feedback_json || [];
+      if (comment) s.decision_feedback_json.push({ sentiment, comment, author });
+      return s;
+    },
     async listDecisionLog() {
       return decisions;
     }
@@ -284,5 +293,25 @@ test('GET /api/report berechnet Ressourcen-Stunden, Credits und Ampel-Kennzahlen
     assert.equal(rep.summary.totalStories, 1);
     assert.equal(rep.summary.totalMentions, 1);
     assert.equal(rep.credits[0].name, 'Anna Beispiel');
+
+    const fbRes = await fetch(`${baseUrl}/api/stories/1/decision-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sentiment: 'down', comment: 'Kommt jede Woche wieder rein!', author: 'Anna Beispiel' })
+    });
+    assert.equal(fbRes.status, 200);
+    const updated = await fbRes.json();
+    assert.equal(updated.decision_down, 1);
+    assert.equal(updated.decision_feedback_json.length, 1);
+
+    const jiraRes = await fetch(`${baseUrl}/api/stories/1/jira`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issueType: 'Feature' })
+    });
+    assert.equal(jiraRes.status, 200);
+    const jiraBody = await jiraRes.json();
+    assert.equal(jiraBody.mode, 'clipboard');
+    assert.match(jiraBody.markup, /h2\. Feature:/);
   });
 });

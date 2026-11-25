@@ -8,6 +8,7 @@ const state = {
   expandedId: null,
   freshId: null,
   pendingStatus: null,
+  pendingDecFeedback: null, // { id, sentiment }
   votedIds: new Set(JSON.parse(localStorage.getItem('re_voted') || '[]')),
   report: {
     from: `${currentYear}-01-01`,
@@ -162,7 +163,52 @@ async function loadIdeas() {
       const expanded = state.expandedId === item.id;
       const voted = state.votedIds.has(item.id);
       const pending = state.pendingStatus && state.pendingStatus.id === item.id ? state.pendingStatus : null;
+      const pendingFb = state.pendingDecFeedback && state.pendingDecFeedback.id === item.id ? state.pendingDecFeedback : null;
       const wording = item.public_response || item.decision_reason || '';
+      const postMentions = Number(item.post_decision_mentions) || 0;
+      const decUp = Number(item.decision_up) || 0;
+      const decDown = Number(item.decision_down) || 0;
+      const decComments = Array.isArray(item.decision_feedback_json) ? item.decision_feedback_json : [];
+      const hasDecision = ['Abgelehnt', 'Umgesetzt', 'In Arbeit', 'Angenommen'].includes(item.status);
+      const hasPressure = (item.status === 'Abgelehnt' && postMentions > 0) || decDown > decUp;
+
+      const pressureBadge = hasPressure
+        ? `<span class="tag-mini tag-pressure">${postMentions > 0 ? `+${postMentions}× nach Ablehnung` : 'Neu prüfen'}</span>`
+        : '';
+
+      const decisionVoteHtml = hasDecision
+        ? `
+          <div class="decision-vote-row">
+            <span>Entscheid:</span>
+            <button type="button" class="dv-btn js-dec-vote" data-id="${item.id}" data-sentiment="up" title="Mit Entscheid einverstanden">👍 ${decUp}</button>
+            <button type="button" class="dv-btn js-dec-vote ${decDown > decUp ? 'down-hot' : ''}" data-id="${item.id}" data-sentiment="down" title="Unzufrieden / Druck erhöhen">👎 ${decDown}</button>
+            <button type="button" class="text-link js-dec-comment-open" data-id="${item.id}">+ Feedback</button>
+          </div>
+          ${
+            pendingFb
+              ? `
+                <form class="decision-form js-dec-comment-form" data-id="${item.id}" style="margin-top:6px;">
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <input type="text" name="comment" required placeholder="Kurze Rückmeldung zum Entscheid…" style="flex:1 1 200px;" autofocus />
+                    <button type="submit" class="st-btn active">Senden</button>
+                  </div>
+                </form>
+              `
+              : ''
+          }
+          ${
+            decComments.length > 0
+              ? `<div class="dv-comments">${decComments
+                  .slice(-3)
+                  .map(
+                    (c) =>
+                      `<div class="dv-comment ${c.sentiment === 'down' ? 'is-down' : ''}">${c.sentiment === 'down' ? '👎' : '👍'} ${esc(c.comment)}${c.author ? ` <span style="color:#94a3b8;">— ${esc(c.author)}</span>` : ''}</div>`
+                  )
+                  .join('')}</div>`
+              : ''
+          }
+        `
+        : '';
 
       const notesHtml = `
         ${
@@ -180,6 +226,7 @@ async function loadIdeas() {
               </div>`
             : ''
         }
+        ${decisionVoteHtml}
       `;
 
       const drawerHtml = expanded
@@ -192,7 +239,9 @@ async function loadIdeas() {
                 <button type="button" class="feas-btn js-feas ${feas === 'aufwaendig' ? 'active-aufwaendig' : ''}" data-id="${item.id}" data-feas="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig</button>
                 <button type="button" class="feas-btn js-vote-bulk" data-id="${item.id}" data-delta="10">+10 Meldungen</button>
               </div>
-              <div style="display:flex; gap:12px;">
+              <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <button type="button" class="text-link js-jira" data-id="${item.id}" data-type="Story">→ Jira Story</button>
+                <button type="button" class="text-link js-jira" data-id="${item.id}" data-type="Feature">→ Jira Feature</button>
                 <a class="text-link" href="/api/stories/${item.id}/export/markdown">Markdown</a>
                 <button type="button" class="text-link danger js-delete" data-id="${item.id}">Löschen</button>
               </div>
@@ -256,6 +305,8 @@ async function loadIdeas() {
               <div class="card-head">
                 <h2 class="idea-title">${esc(item.title)}</h2>
                 <div class="head-meta">
+                  ${item.jira_key ? `<a class="tag-mini" href="${esc(item.jira_url || '#')}" target="_blank" rel="noopener" style="text-decoration:none;">${esc(item.jira_key)}</a>` : ''}
+                  ${pressureBadge}
                   ${ampelDot(feas)}
                   <span>${esc(channel)}</span>
                   ${statusBadge(item.status)}
@@ -427,6 +478,27 @@ async function loadReport() {
           })
           .join('');
 
+  const pressureHtml =
+    rep.pressureItems && rep.pressureItems.length > 0
+      ? `
+        <div class="pressure-box">
+          <div class="chart-title" style="color:#b91c1c; margin-bottom:6px;">Wiedervorlage &amp; Handlungsdruck (trotz Ablehnung weiter gefragt / unzufrieden)</div>
+          ${rep.pressureItems
+            .map(
+              (p) => `
+              <div class="pressure-item">
+                <span><strong>${esc(p.title)}</strong> (${esc(p.status)})</span>
+                <span style="white-space:nowrap; color:#b91c1c; font-weight:600;">
+                  ${p.postDecisionMentions > 0 ? `+${p.postDecisionMentions}× danach` : `${p.totalMentions}× total`} · 👍 ${p.decisionUp} / 👎 ${p.decisionDown}
+                </span>
+              </div>
+            `
+            )
+            .join('')}
+        </div>
+      `
+      : '';
+
   document.getElementById('report-sheet').innerHTML = `
     <div class="rep-head">
       <div>
@@ -438,6 +510,8 @@ async function loadReport() {
       </div>
       <div class="rep-sub">Erstellt am ${esc(fmtDateCH(rep.generatedAt))}</div>
     </div>
+
+    ${pressureHtml}
 
     <div class="rep-kpis">
       <div class="rep-kpi">
@@ -668,6 +742,33 @@ function init() {
       return;
     }
 
+    const jiraBtn = ev.target.closest('.js-jira');
+    if (jiraBtn) {
+      ev.stopPropagation();
+      const id = Number(jiraBtn.dataset.id);
+      const issueType = jiraBtn.dataset.type || 'Story';
+      try {
+        const res = await api(`/api/stories/${id}/jira`, {
+          method: 'POST',
+          body: JSON.stringify({ issueType })
+        });
+        if (res.mode === 'api') {
+          showToast(`Jira ${issueType} erstellt: ${res.jiraKey}`);
+          await loadIdeas();
+        } else {
+          try {
+            await navigator.clipboard.writeText(res.markup || '');
+            showToast(`Jira-${issueType} in Zwischenablage kopiert.`);
+          } catch {
+            showToast(`Jira-${issueType} bereit.`);
+          }
+        }
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
+
     const delBtn = ev.target.closest('.js-delete');
     if (delBtn) {
       ev.stopPropagation();
@@ -675,6 +776,32 @@ function init() {
       state.expandedId = null;
       showToast('Gelöscht.');
       await Promise.all([loadIdeas(), loadHealth()]);
+      return;
+    }
+
+    const decVoteBtn = ev.target.closest('.js-dec-vote');
+    if (decVoteBtn) {
+      ev.stopPropagation();
+      const id = Number(decVoteBtn.dataset.id);
+      const sentiment = decVoteBtn.dataset.sentiment;
+      await api(`/api/stories/${id}/decision-feedback`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sentiment,
+          author: localStorage.getItem('re_author') || ''
+        })
+      });
+      showToast(sentiment === 'down' ? 'Unzufriedenheit gezählt.' : 'Zustimmung gezählt.');
+      await loadIdeas();
+      return;
+    }
+
+    const decCommentOpen = ev.target.closest('.js-dec-comment-open');
+    if (decCommentOpen) {
+      ev.stopPropagation();
+      const id = Number(decCommentOpen.dataset.id);
+      state.pendingDecFeedback = state.pendingDecFeedback?.id === id ? null : { id, sentiment: 'down' };
+      await loadIdeas();
       return;
     }
 
@@ -733,6 +860,24 @@ function init() {
   });
 
   document.getElementById('ideas-list').addEventListener('submit', async (ev) => {
+    const decCommentForm = ev.target.closest('.js-dec-comment-form');
+    if (decCommentForm) {
+      ev.preventDefault();
+      const comment = new FormData(decCommentForm).get('comment');
+      await api(`/api/stories/${decCommentForm.dataset.id}/decision-feedback`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sentiment: 'down',
+          comment,
+          author: localStorage.getItem('re_author') || ''
+        })
+      });
+      state.pendingDecFeedback = null;
+      showToast('Rückmeldung zum Entscheid gespeichert.');
+      await loadIdeas();
+      return;
+    }
+
     const notesForm = ev.target.closest('.js-notes');
     if (notesForm) {
       ev.preventDefault();
