@@ -1037,6 +1037,25 @@ function init() {
     document.body.classList.add('embed-mode');
   }
 
+  // Omnichannel: PWA Service Worker & optionaler 1-Klick-Installationsknopf (Desktop/Mobile)
+  if ('serviceWorker' in navigator && !document.body.classList.contains('embed-mode')) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  let deferredPrompt = null;
+  const installBtn = document.getElementById('btn-install-app');
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    deferredPrompt = ev;
+    installBtn?.classList.remove('hidden');
+  });
+  installBtn?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBtn.classList.add('hidden');
+  });
+
   // Composer Zeit- & Wheel-Picker einhängen
   const durSlot = document.getElementById('composer-dur-slot');
   durSlot.innerHTML = renderDurationPickerHtml({ idAttr: 'composer-dur-picker', initialSec: 0, placeholder: 'Zeit' });
