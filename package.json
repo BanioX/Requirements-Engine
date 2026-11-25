@@ -1,0 +1,13 @@
+{
+  "name": "requirements-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Requirements Engine — KMU-Portal für Feedback-zu-User-Stories, Klick-Anleitungen, Aktualitäts-Wächter & Entscheid-Log",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/**/*.test.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

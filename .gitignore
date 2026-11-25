@@ -1,0 +1,22 @@
+# Secrets & lokale Umgebung (nie committen!)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Dependencies & Build-Artefakte
+node_modules/
+dist/
+coverage/
+*.log
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Lokale Test- & Admin-Artefakte
+admin/
+tmp/
