@@ -16,20 +16,20 @@
   1. `docker compose ps` im Terminal ausführen und prüfen, dass `app`, `db`, `tunnel` und `watchtower` getrennt laufen.
   2. Öffentliche `https://*.trycloudflare.com`-URL aus `docker compose logs tunnel` auslesen.
   3. URL im Browser (oder auf einem zweiten Gerät/Smartphone über Mobilfunk) öffnen.
-  4. Im Tab *«1. Feedback → User Stories»* ein neues eBanking-Feedback eingeben, auf *«Übersetzen & speichern»* klicken und das Live-Betriebs-Panel im Footer prüfen.
-- **Erwartetes Ergebnis:** Seite lädt fehlerfrei über gültiges HTTPS-Zertifikat; Feedback wird automatisch als User Story + Tasks gespeichert; Footer zeigt `DB: verbunden`, aktualisierte Datensatz-Anzahl sowie Version & Commit-Hash.
+  4. Im Eingabefeld ein neues Feedback eingeben, auf *«Idee einreichen»* klicken, einmal auf den Upvote-Knopf (`▲`) klicken und das Live-Betriebs-Panel am unteren Rand prüfen.
+- **Erwartetes Ergebnis:** Seite lädt fehlerfrei über gültiges HTTPS-Zertifikat; Feedback erscheint sofort in der Rangliste mit 4-Stufen-Loop und Ampel; Footer zeigt `DB verbunden`, aktualisierte Datensatz-Anzahl sowie Version & Commit-Hash.
 
 ### TF-02: Datenpersistenz über Container-Neustart (Muss-Punkt 1)
 - **Anforderung:** Muss-Punkt 1 — Daten bleiben nach einem Neustart der Container erhalten.
 - **Priorität:** Hoch
 - **Vorbedingungen:** Stack läuft und App ist erreichbar.
 - **Testschritte:**
-  1. Über das Web-UI eine eindeutige Test-Anforderung anlegen (z. B. *«Persistenz-Test 2026: TWINT-Beleg-Export»*) und die erzeugte `REQ-ID` notieren.
+  1. Über das Web-UI eine eindeutige Test-Idee einreichen (z. B. *«Persistenz-Test 2026: Eigenen Beleg-Export sofort als PDF herunterladen»*) und einmal hochvoten (`▲`).
   2. Im Terminal `docker compose down` ausführen (alle Container stoppen und entfernen, **ohne** `-v`).
   3. Mit `docker compose ps` prüfen, dass keine Container mehr laufen, und mit `docker volume ls` prüfen, dass `pg_data` weiter existiert.
   4. Stack mit `docker compose up -d` wieder starten und warten, bis `app` und `db` `(healthy)` sind.
-  5. Web-UI neu laden (`Ctrl+F5`) und nach der zuvor erstellten `REQ-ID` suchen.
-- **Erwartetes Ergebnis:** Die zuvor erfasste Anforderung inkl. generierter User Story, Tasks und Entscheid-Log-Eintrag ist nach dem kompletten Neustart unverändert vorhanden.
+  5. Web-UI neu laden (`Ctrl+F5`) und prüfen, ob die zuvor erstellte Idee inkl. Stimmenzahl und Status vorhanden ist.
+- **Erwartetes Ergebnis:** Die zuvor erfasste Idee inkl. Upvotes, generierter User Story und Tasks ist nach dem kompletten Neustart unverändert vorhanden.
 
 ### TF-03: Keine Passwörter und Tokens im Repository oder in der Git-History (Muss-Punkt 2)
 - **Anforderung:** Muss-Punkt 2 — Passwörter und Tokens stehen nicht im Repository, auch nicht in der Git-History.
