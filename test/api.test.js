@@ -73,6 +73,8 @@ function createMockStore({ dbHealthy = true } = {}) {
         id: stories.length + 1,
         origin: payload.origin || 'kunde',
         channel: payload.channel || 'E-Mail',
+        submitted_by: payload.submittedBy || '',
+        feasibility: payload.feasibility || 'mittel',
         source_role: payload.sourceRole,
         feedback_type: payload.feedbackType,
         urgency: payload.urgency,
@@ -90,11 +92,18 @@ function createMockStore({ dbHealthy = true } = {}) {
         decision_reason: '',
         public_response: '',
         internal_note: '',
+        created_at: new Date().toISOString(),
         due_date: payload.dueDate,
         trafficLight: { status: 'none', label: 'Kein Termin', daysRemaining: null }
       };
       stories.push(s);
       return s;
+    },
+    async getReportData() {
+      return {
+        stories,
+        mentionsByMonth: [{ month: '2026-11', total: stories.reduce((a, b) => a + b.votes, 0) }]
+      };
     },
     async deleteStory(id) {
       const idx = stories.findIndex((x) => x.id === id);
@@ -252,5 +261,28 @@ test('Confluence-Erweiterbarkeit: EMBED_ALLOWED_ORIGINS setzt frame-ancestors ge
     const res = await fetch(`${baseUrl}/health`);
     const csp = res.headers.get('content-security-policy') || '';
     assert.match(csp, /frame-ancestors 'self' https:\/\/\*\.atlassian\.net/);
+  });
+});
+
+test('GET /api/report berechnet Ressourcen-Stunden, Credits und Ampel-Kennzahlen', async () => {
+  const app = createApp({ store: createMockStore({ dbHealthy: true }) });
+
+  await withServer(app, async (baseUrl) => {
+    await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rawFeedback: 'Sprache im Portal springt nach jeder Sitzung wieder auf Englisch zurück.',
+        channel: 'E-Mail',
+        submittedBy: 'Anna Beispiel'
+      })
+    });
+
+    const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&minutesPerRequest=10`);
+    assert.equal(res.status, 200);
+    const rep = await res.json();
+    assert.equal(rep.summary.totalStories, 1);
+    assert.equal(rep.summary.totalMentions, 1);
+    assert.equal(rep.credits[0].name, 'Anna Beispiel');
   });
 });

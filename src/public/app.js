@@ -1,11 +1,21 @@
+const currentYear = new Date().getFullYear();
+
 const state = {
+  view: 'board', // 'board' | 'report'
   channel: 'E-Mail',
   ampel: 'alle',
   mode: 'all', // 'all' | 'active' | 'done'
   expandedId: null,
   freshId: null,
-  pendingStatus: null, // { id, status }
-  votedIds: new Set(JSON.parse(localStorage.getItem('re_voted') || '[]'))
+  pendingStatus: null,
+  votedIds: new Set(JSON.parse(localStorage.getItem('re_voted') || '[]')),
+  report: {
+    from: `${currentYear}-01-01`,
+    to: `${currentYear}-12-31`,
+    feasibility: 'Alle',
+    status: 'Alle',
+    minutesPerRequest: 6
+  }
 };
 
 const WORDING_TEMPLATES = {
@@ -22,6 +32,13 @@ function esc(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function fmtDateCH(iso) {
+  if (!iso) return '–';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  return d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function showToast(msg) {
@@ -78,6 +95,20 @@ function loopBars(status) {
   `;
 }
 
+function setView(viewName) {
+  state.view = viewName;
+  const isReport = viewName === 'report';
+  document.getElementById('board-view').classList.toggle('hidden', isReport);
+  document.getElementById('report-view').classList.toggle('hidden', !isReport);
+  document.getElementById('board-search-wrap').classList.toggle('hidden', isReport);
+  const btn = document.getElementById('btn-toggle-report');
+  btn.classList.toggle('active', isReport);
+  btn.textContent = isReport ? '← Board' : 'Report';
+  if (isReport) {
+    loadReport();
+  }
+}
+
 async function loadHealth() {
   try {
     const h = await api('/health');
@@ -125,6 +156,8 @@ async function loadIdeas() {
     .map((item) => {
       const feas = item.feasibility || 'mittel';
       const channel = item.channel || 'E-Mail';
+      const author = item.submitted_by ? ` · ${item.submitted_by}` : '';
+      const dateStr = fmtDateCH(item.created_at);
       const tasks = Array.isArray(item.tasks_json) ? item.tasks_json : [];
       const expanded = state.expandedId === item.id;
       const voted = state.votedIds.has(item.id);
@@ -229,6 +262,9 @@ async function loadIdeas() {
                 </div>
               </div>
               <p class="idea-text">${esc(item.raw_feedback)}</p>
+              <div style="margin-top:5px; font-size:0.75rem; color:#64748b;">
+                ${esc(dateStr)}${esc(author)}
+              </div>
               ${loopBars(item.status)}
               ${notesHtml}
             </div>
@@ -240,10 +276,246 @@ async function loadIdeas() {
     .join('');
 }
 
+// --- Management-Report mit SVG-Grafiken (Ampel-Donut, Ressourcen-Balken, Monatsverlauf, Credits) ---
+function buildDonutSvg({ einfach, mittel, aufwaendig }) {
+  const total = einfach + mittel + aufwaendig;
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  if (total === 0) {
+    return `
+      <svg width="124" height="124" viewBox="0 0 124 124" aria-label="Ampel-Verteilung">
+        <circle cx="62" cy="62" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="14"/>
+        <text x="62" y="66" text-anchor="middle" font-size="14" font-weight="700" fill="#64748b">0</text>
+      </svg>
+    `;
+  }
+  const segs = [
+    { val: einfach, color: '#22c55e' },
+    { val: mittel, color: '#f59e0b' },
+    { val: aufwaendig, color: '#ef4444' }
+  ];
+  let offset = 0;
+  const circles = segs
+    .filter((s) => s.val > 0)
+    .map((s) => {
+      const len = (s.val / total) * c;
+      const el = `<circle cx="62" cy="62" r="${r}" fill="none" stroke="${s.color}" stroke-width="14" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 62 62)"/>`;
+      offset += len;
+      return el;
+    })
+    .join('');
+
+  return `
+    <svg width="124" height="124" viewBox="0 0 124 124" aria-label="Ampel-Verteilung">
+      <circle cx="62" cy="62" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
+      ${circles}
+      <text x="62" y="61" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">${total}</text>
+      <text x="62" y="76" text-anchor="middle" font-size="10" fill="#64748b">Themen</text>
+    </svg>
+  `;
+}
+
+function buildMonthlySvg(mentionsByMonth = []) {
+  if (!mentionsByMonth.length) {
+    return '<div class="empty-state" style="padding:18px;">Keine Monatsdaten im gewählten Zeitraum.</div>';
+  }
+  const maxVal = Math.max(...mentionsByMonth.map((m) => m.total), 1);
+  const w = 620;
+  const h = 135;
+  const padL = 24;
+  const padB = 24;
+  const chartH = h - padB - 18;
+  const slotW = (w - padL * 2) / Math.max(mentionsByMonth.length, 1);
+  const barW = Math.min(34, Math.max(12, slotW - 10));
+
+  const bars = mentionsByMonth
+    .map((m, i) => {
+      const bh = Math.max(4, Math.round((m.total / maxVal) * chartH));
+      const x = padL + i * slotW + (slotW - barW) / 2;
+      const y = h - padB - bh;
+      return `
+        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh}" rx="4" fill="#0f172a"/>
+        <text x="${(x + barW / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="#0f172a">${m.total}×</text>
+        <text x="${(x + barW / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle" font-size="10" fill="#64748b">${esc(m.month.slice(5))}/${esc(m.month.slice(2, 4))}</text>
+      `;
+    })
+    .join('');
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:150px; display:block;" aria-label="Monatsverlauf Meldungen">
+      <line x1="${padL}" y1="${h - padB}" x2="${w - padL}" y2="${h - padB}" stroke="#e2e8f0" stroke-width="1"/>
+      ${bars}
+    </svg>
+  `;
+}
+
+async function loadReport() {
+  const { from, to, feasibility, status, minutesPerRequest } = state.report;
+  const params = new URLSearchParams({
+    from,
+    to,
+    feasibility,
+    status,
+    minutesPerRequest: String(minutesPerRequest)
+  });
+
+  document.getElementById('rep-csv-link').href = `/api/stories/export/csv?${params.toString()}`;
+  const rep = await api(`/api/report?${params.toString()}`);
+
+  const maxDriver = Math.max(...rep.topResourceDrivers.map((d) => d.mentions), 1);
+  const driversHtml =
+    rep.topResourceDrivers.length === 0
+      ? '<div class="empty-state" style="padding:18px;">Keine Einträge im gewählten Filter.</div>'
+      : `<div class="hbar-list">
+          ${rep.topResourceDrivers
+            .map((d) => {
+              const pct = Math.max(6, Math.round((d.mentions / maxDriver) * 100));
+              return `
+                <div class="hbar-item">
+                  <div class="hbar-meta">
+                    <span style="font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.title)}</span>
+                    <span style="white-space:nowrap; color:#475569;"><strong>${d.mentions}×</strong> · ${d.hours} h</span>
+                  </div>
+                  <div class="hbar-track">
+                    <div class="hbar-fill hbar-${esc(d.feasibility)}" style="width:${pct}%"></div>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>`;
+
+  const creditsHtml =
+    rep.credits.length > 0
+      ? `
+        <div class="chart-title" style="margin-top:6px;">Ideengeber &amp; Credits</div>
+        <div class="credits-grid">
+          ${rep.credits
+            .map(
+              (c) => `
+              <div class="credit-card">
+                <div class="credit-name">${esc(c.name)}</div>
+                <div style="color:#64748b; margin-top:2px;">${c.ideas} Ideen · ${c.implemented} umgesetzt · ${c.mentions}× Meldungen</div>
+              </div>
+            `
+            )
+            .join('')}
+        </div>
+      `
+      : '';
+
+  const rowsHtml =
+    rep.stories.length === 0
+      ? '<tr><td colspan="7" style="color:#64748b; text-align:center; padding:18px;">Keine Einträge für diesen Zeitraum / Filter.</td></tr>'
+      : rep.stories
+          .map((s) => {
+            const hrs = Math.round((((Number(s.votes) || 1) * minutesPerRequest) / 60) * 10) / 10;
+            return `
+              <tr>
+                <td style="white-space:nowrap;">${esc(fmtDateCH(s.created_at))}</td>
+                <td>
+                  <strong>${esc(s.title)}</strong>
+                  ${s.internal_note ? `<div style="color:#b45309; font-size:0.75rem;">Dev: ${esc(s.internal_note)}</div>` : ''}
+                </td>
+                <td>${esc(s.submitted_by || '–')}</td>
+                <td>${esc(s.channel || 'E-Mail')}</td>
+                <td>${ampelDot(s.feasibility)} ${esc(s.feasibility || 'mittel')}</td>
+                <td>${esc(s.status)}</td>
+                <td style="white-space:nowrap;"><strong>${s.votes}×</strong> (${hrs} h)</td>
+              </tr>
+            `;
+          })
+          .join('');
+
+  document.getElementById('report-sheet').innerHTML = `
+    <div class="rep-head">
+      <div>
+        <h1>Requirements Engine — Management-Report</h1>
+        <div class="rep-sub">
+          Zeitraum: <strong>${esc(fmtDateCH(from))} – ${esc(fmtDateCH(to))}</strong>
+          · Filter: Ampel ${esc(feasibility)} · Status ${esc(status)}
+        </div>
+      </div>
+      <div class="rep-sub">Erstellt am ${esc(fmtDateCH(rep.generatedAt))}</div>
+    </div>
+
+    <div class="rep-kpis">
+      <div class="rep-kpi">
+        <span class="rep-kpi-label">Themen</span>
+        <span class="rep-kpi-val">${rep.summary.totalStories}</span>
+        <span class="rep-kpi-sub">${rep.byStatus.erledigt} umgesetzt · ${rep.byStatus.inArbeit} in Arbeit</span>
+      </div>
+      <div class="rep-kpi">
+        <span class="rep-kpi-label">Anfragen Total</span>
+        <span class="rep-kpi-val">${rep.summary.totalMentions}×</span>
+        <span class="rep-kpi-sub">Erfasste Kunden- &amp; Team-Meldungen</span>
+      </div>
+      <div class="rep-kpi">
+        <span class="rep-kpi-label">Ressourcen-Aufwand</span>
+        <span class="rep-kpi-val">${rep.summary.totalHours} h</span>
+        <span class="rep-kpi-sub">≈ ${rep.summary.totalWorkdays} Arbeitstage (à ${minutesPerRequest} Min.)</span>
+      </div>
+      <div class="rep-kpi">
+        <span class="rep-kpi-label">Umsetzungsquote</span>
+        <span class="rep-kpi-val">${rep.summary.implementationRate} %</span>
+        <span class="rep-kpi-sub">${rep.byFeasibility.einfach} Quick Wins (Einfach)</span>
+      </div>
+    </div>
+
+    <div class="rep-charts">
+      <div class="chart-card">
+        <h3 class="chart-title">Machbarkeits-Ampel</h3>
+        <div class="donut-wrap">
+          ${buildDonutSvg(rep.byFeasibility)}
+          <div class="donut-legend">
+            <div class="donut-legend-row"><span><span class="dot-sm dot-green"></span> Einfach</span><strong>${rep.byFeasibility.einfach}</strong></div>
+            <div class="donut-legend-row"><span><span class="dot-sm dot-amber"></span> Mittel</span><strong>${rep.byFeasibility.mittel}</strong></div>
+            <div class="donut-legend-row"><span><span class="dot-sm dot-red"></span> Aufwändig</span><strong>${rep.byFeasibility.aufwaendig}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3 class="chart-title">Top Ressourcen-Treiber (Meldungen &amp; Stunden)</h3>
+        ${driversHtml}
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:22px;">
+      <h3 class="chart-title">Monatlicher Verlauf der Anfragen</h3>
+      ${buildMonthlySvg(rep.mentionsByMonth)}
+    </div>
+
+    ${creditsHtml}
+
+    <div class="chart-title">Einzelübersicht (${rep.stories.length})</div>
+    <table class="rep-table">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Thema</th>
+          <th>Idee von</th>
+          <th>Kanal</th>
+          <th>Ampel</th>
+          <th>Status</th>
+          <th>Menge / Aufwand</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+}
+
 async function handleSubmit(ev) {
   ev.preventDefault();
   const textarea = document.getElementById('fb-text');
+  const authorInput = document.getElementById('fb-author');
   const dupBanner = document.getElementById('dup-banner');
+  const author = authorInput.value.trim();
+
+  if (author) {
+    localStorage.setItem('re_author', author);
+  }
 
   try {
     const res = await api('/api/stories', {
@@ -251,6 +523,7 @@ async function handleSubmit(ev) {
       body: JSON.stringify({
         rawFeedback: textarea.value.trim(),
         channel: state.channel,
+        submittedBy: author,
         origin: state.channel === 'Intern / Team' ? 'betrieb' : 'kunde'
       })
     });
@@ -258,7 +531,7 @@ async function handleSubmit(ev) {
     textarea.value = '';
     state.freshId = res.story.id;
     state.ampel = 'alle';
-    document.querySelectorAll('.ampel-btn').forEach((b) => b.classList.toggle('active', b.dataset.ampel === 'alle'));
+    document.querySelectorAll('.ampel-btn[data-ampel]').forEach((b) => b.classList.toggle('active', b.dataset.ampel === 'alle'));
 
     if (res.duplicates && res.duplicates.length > 0) {
       const top = res.duplicates[0];
@@ -280,9 +553,69 @@ function init() {
     document.body.classList.add('embed-mode');
   }
 
+  const savedAuthor = localStorage.getItem('re_author') || '';
+  document.getElementById('fb-author').value = savedAuthor;
+
+  document.getElementById('rep-from').value = state.report.from;
+  document.getElementById('rep-to').value = state.report.to;
+
   document.getElementById('brand-link').addEventListener('click', (ev) => {
     ev.preventDefault();
+    setView('board');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  document.getElementById('btn-toggle-report').addEventListener('click', () => {
+    setView(state.view === 'report' ? 'board' : 'report');
+  });
+
+  document.getElementById('btn-export-pdf').addEventListener('click', () => window.print());
+
+  document.getElementById('rep-from').addEventListener('change', (ev) => {
+    state.report.from = ev.target.value;
+    loadReport();
+  });
+  document.getElementById('rep-to').addEventListener('change', (ev) => {
+    state.report.to = ev.target.value;
+    loadReport();
+  });
+  document.getElementById('rep-year-curr').addEventListener('click', () => {
+    state.report.from = `${currentYear}-01-01`;
+    state.report.to = `${currentYear}-12-31`;
+    document.getElementById('rep-from').value = state.report.from;
+    document.getElementById('rep-to').value = state.report.to;
+    loadReport();
+  });
+  document.getElementById('rep-year-prev').addEventListener('click', () => {
+    state.report.from = `${currentYear - 1}-01-01`;
+    state.report.to = `${currentYear - 1}-12-31`;
+    document.getElementById('rep-from').value = state.report.from;
+    document.getElementById('rep-to').value = state.report.to;
+    loadReport();
+  });
+
+  document.querySelectorAll('[data-rep-feas]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.report.feasibility = btn.dataset.repFeas;
+      document.querySelectorAll('[data-rep-feas]').forEach((b) => b.classList.toggle('active', b === btn));
+      loadReport();
+    });
+  });
+
+  document.querySelectorAll('[data-rep-status]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.report.status = btn.dataset.repStatus;
+      document.querySelectorAll('[data-rep-status]').forEach((b) => b.classList.toggle('active', b === btn));
+      loadReport();
+    });
+  });
+
+  document.querySelectorAll('[data-rep-min]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.report.minutesPerRequest = Number(btn.dataset.repMin);
+      document.querySelectorAll('[data-rep-min]').forEach((b) => b.classList.toggle('active', b === btn));
+      loadReport();
+    });
   });
 
   document.querySelectorAll('.ch-btn').forEach((btn) => {
@@ -301,18 +634,18 @@ function init() {
     }
   });
 
-  document.querySelectorAll('.ampel-btn').forEach((btn) => {
+  document.querySelectorAll('.ampel-btn[data-ampel]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.ampel = btn.dataset.ampel;
-      document.querySelectorAll('.ampel-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.ampel-btn[data-ampel]').forEach((b) => b.classList.toggle('active', b === btn));
       loadIdeas();
     });
   });
 
-  document.querySelectorAll('.status-group .st-btn').forEach((btn) => {
+  document.querySelectorAll('.status-group .st-btn[data-mode]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.mode = btn.dataset.mode;
-      document.querySelectorAll('.status-group .st-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.status-group .st-btn[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
       loadIdeas();
     });
   });

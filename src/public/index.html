@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar no-print">
     <div class="shell topbar-inner">
       <a href="#" class="brand" id="brand-link">
         <span class="brand-mark" aria-hidden="true">
@@ -22,57 +22,107 @@
       </a>
 
       <div class="topbar-right">
-        <div class="search-wrap">
+        <div class="search-wrap" id="board-search-wrap">
           <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="search" id="filter-q" class="search" placeholder="Suchen" aria-label="Suchen" />
         </div>
+        <button type="button" id="btn-toggle-report" class="quiet-btn">Report</button>
         <a href="/api/stories/export/csv" class="quiet-btn">CSV</a>
       </div>
     </div>
   </header>
 
   <main class="shell main-wrap">
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    <div id="toast" class="toast hidden no-print" role="status" aria-live="polite"></div>
 
-    <!-- Ein Feld, 4 Kanal-Buttons, 1 Knopf. Null Dropdowns, null Floskeln. -->
-    <form id="feedback-form" class="composer">
-      <textarea
-        id="fb-text"
-        rows="2"
-        required
-        placeholder="Eingegangenes Feedback erfassen…"
-      ></textarea>
-      <div class="composer-bar">
-        <div class="channel-group" role="group" aria-label="Kanal">
-          <button type="button" class="ch-btn active" data-channel="E-Mail">E-Mail</button>
-          <button type="button" class="ch-btn" data-channel="Telefon">Telefon</button>
-          <button type="button" class="ch-btn" data-channel="Ticket / Chat">Ticket</button>
-          <button type="button" class="ch-btn" data-channel="Intern / Team">Intern</button>
+    <!-- ANSICHT A: ULTRA-MINIMALISTISCHES BOARD -->
+    <div id="board-view">
+      <form id="feedback-form" class="composer">
+        <textarea
+          id="fb-text"
+          rows="2"
+          required
+          placeholder="Eingegangenes Feedback erfassen…"
+        ></textarea>
+        <div class="composer-bar">
+          <div class="composer-left">
+            <div class="channel-group" role="group" aria-label="Kanal">
+              <button type="button" class="ch-btn active" data-channel="E-Mail">E-Mail</button>
+              <button type="button" class="ch-btn" data-channel="Telefon">Telefon</button>
+              <button type="button" class="ch-btn" data-channel="Ticket / Chat">Ticket</button>
+              <button type="button" class="ch-btn" data-channel="Intern / Team">Intern</button>
+            </div>
+            <input type="text" id="fb-author" class="author-input" placeholder="Vorname Nachname" aria-label="Idee / Vorschlag von" />
+          </div>
+          <button type="submit" class="btn-primary">Erfassen</button>
         </div>
-        <button type="submit" class="btn-primary">Erfassen</button>
-      </div>
-      <div id="dup-banner" class="dup-banner hidden"></div>
-    </form>
+        <div id="dup-banner" class="dup-banner hidden"></div>
+      </form>
 
-    <!-- Eine einzige ruhige Filterzeile: Ampel links, Status rechts -->
-    <div class="filter-row">
-      <div class="ampel-group" role="group" aria-label="Machbarkeit">
-        <button type="button" class="ampel-btn active" data-ampel="alle">Alle <span id="count-all">0</span></button>
-        <button type="button" class="ampel-btn" data-ampel="einfach"><span class="dot-sm dot-green"></span>Einfach <span id="count-green">0</span></button>
-        <button type="button" class="ampel-btn" data-ampel="mittel"><span class="dot-sm dot-amber"></span>Mittel <span id="count-amber">0</span></button>
-        <button type="button" class="ampel-btn" data-ampel="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig <span id="count-red">0</span></button>
+      <div class="filter-row">
+        <div class="ampel-group" role="group" aria-label="Machbarkeit">
+          <button type="button" class="ampel-btn active" data-ampel="alle">Alle <span id="count-all">0</span></button>
+          <button type="button" class="ampel-btn" data-ampel="einfach"><span class="dot-sm dot-green"></span>Einfach <span id="count-green">0</span></button>
+          <button type="button" class="ampel-btn" data-ampel="mittel"><span class="dot-sm dot-amber"></span>Mittel <span id="count-amber">0</span></button>
+          <button type="button" class="ampel-btn" data-ampel="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig <span id="count-red">0</span></button>
+        </div>
+        <div class="status-group" role="group" aria-label="Status">
+          <button type="button" class="st-btn active" data-mode="all">Alle</button>
+          <button type="button" class="st-btn" data-mode="active">In Arbeit</button>
+          <button type="button" class="st-btn" data-mode="done">Erledigt</button>
+        </div>
       </div>
-      <div class="status-group" role="group" aria-label="Status">
-        <button type="button" class="st-btn active" data-mode="all">Alle</button>
-        <button type="button" class="st-btn" data-mode="active">In Arbeit</button>
-        <button type="button" class="st-btn" data-mode="done">Erledigt</button>
-      </div>
+
+      <section id="ideas-list" class="ideas-list" aria-label="Feedback-Liste"></section>
     </div>
 
-    <section id="ideas-list" class="ideas-list" aria-label="Feedback-Liste"></section>
+    <!-- ANSICHT B: MANAGEMENT-REPORT & PDF-EXPORT (01.01.XXXX – 31.12.XXXX) -->
+    <section id="report-view" class="report-view hidden" aria-label="Management-Report">
+      <div class="report-controls no-print">
+        <div class="report-control-row">
+          <div class="date-range">
+            <input type="date" id="rep-from" aria-label="Von Datum" />
+            <span class="sep">–</span>
+            <input type="date" id="rep-to" aria-label="Bis Datum" />
+            <button type="button" class="st-btn" id="rep-year-curr">Aktuelles Jahr</button>
+            <button type="button" class="st-btn" id="rep-year-prev">Vorjahr</button>
+          </div>
+          <div class="report-actions">
+            <a href="/api/stories/export/csv" id="rep-csv-link" class="quiet-btn">CSV</a>
+            <button type="button" id="btn-export-pdf" class="btn-primary">PDF exportieren</button>
+          </div>
+        </div>
+
+        <div class="report-control-row">
+          <div class="ampel-group" id="rep-feas-pills" role="group" aria-label="Ampel Filter">
+            <button type="button" class="ampel-btn active" data-rep-feas="Alle">Alle</button>
+            <button type="button" class="ampel-btn" data-rep-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
+            <button type="button" class="ampel-btn" data-rep-feas="mittel"><span class="dot-sm dot-amber"></span>Mittel</button>
+            <button type="button" class="ampel-btn" data-rep-feas="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig</button>
+          </div>
+
+          <div class="status-group" id="rep-status-pills" role="group" aria-label="Status Filter">
+            <button type="button" class="st-btn active" data-rep-status="Alle">Alle</button>
+            <button type="button" class="st-btn" data-rep-status="Umgesetzt">Umgesetzt</button>
+            <button type="button" class="st-btn" data-rep-status="In Arbeit">In Arbeit</button>
+            <button type="button" class="st-btn" data-rep-status="Offen">Offen</button>
+            <button type="button" class="st-btn" data-rep-status="Abgelehnt">Abgelehnt</button>
+          </div>
+
+          <div class="status-group" id="rep-min-pills" role="group" aria-label="Minuten pro Anfrage">
+            <span class="sep" style="font-size:0.75rem;">Ø Zeit/Anfrage:</span>
+            <button type="button" class="st-btn active" data-rep-min="6">6 Min</button>
+            <button type="button" class="st-btn" data-rep-min="10">10 Min</button>
+            <button type="button" class="st-btn" data-rep-min="15">15 Min</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="report-sheet" class="report-sheet">Lade Report…</div>
+    </section>
   </main>
 
-  <footer class="ops-bar" aria-label="Systemstatus">
+  <footer class="ops-bar no-print" aria-label="Systemstatus">
     <div class="shell ops-inner">
       <span class="ops-item"><span class="pulse-dot" id="ops-dot"></span><span id="ops-db">DB…</span></span>
       <span class="ops-item" id="ops-counts">0 Einträge</span>

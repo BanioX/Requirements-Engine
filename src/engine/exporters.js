@@ -120,6 +120,8 @@ function escapeCsvCell(value) {
 export function storiesToCsv(stories = []) {
   const header = [
     'ID',
+    'Datum',
+    'Idee von',
     'Meldungen',
     'Machbarkeit',
     'Kanal',
@@ -132,6 +134,8 @@ export function storiesToCsv(stories = []) {
   ];
   const rows = stories.map((s) => [
     `REQ-${s.id}`,
+    s.created_at ? String(s.created_at).slice(0, 10) : '',
+    s.submitted_by || '',
     s.votes ?? 1,
     s.feasibility || 'mittel',
     s.channel || 'E-Mail',

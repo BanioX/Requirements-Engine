@@ -93,9 +93,18 @@ export async function initDatabase(pool) {
 
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'kunde';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'E-Mail';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS submitted_by TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'mittel';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS public_response TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT '';
+
+    CREATE TABLE IF NOT EXISTS story_mentions (
+      id SERIAL PRIMARY KEY,
+      story_id INTEGER NOT NULL REFERENCES feedback_stories(id) ON DELETE CASCADE,
+      delta INTEGER NOT NULL DEFAULT 1,
+      recorded_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
     CREATE TABLE IF NOT EXISTS decision_log (
       id SERIAL PRIMARY KEY,
@@ -320,13 +329,14 @@ export function createPostgresStore(pool) {
     async createStory(payload) {
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, channel, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15::jsonb,$16::jsonb,'Eingang',$17)
+         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16::jsonb,$17::jsonb,'Eingang',$18)
          RETURNING *`,
         [
           payload.processId || null,
           payload.origin || 'kunde',
           payload.channel || 'E-Mail',
+          payload.submittedBy || '',
           payload.feasibility || 'mittel',
           payload.sourceRole,
           payload.feedbackType,
@@ -345,13 +355,17 @@ export function createPostgresStore(pool) {
       );
       const created = res.rows[0];
       await pool.query(
+        `INSERT INTO story_mentions (story_id, delta, recorded_by) VALUES ($1, 1, $2)`,
+        [created.id, created.submitted_by || '']
+      );
+      await pool.query(
         `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
          VALUES ('story', $1, $2, 'Eingegangenes Feedback', $3, $4)`,
         [
           created.id,
           created.title,
-          `Eingegangen via ${created.channel} — automatisch als User Story (${created.moscow}, Machbarkeit: ${created.feasibility}) aufbereitet.`,
-          created.source_role
+          `Eingegangen via ${created.channel}${created.submitted_by ? ` (Idee: ${created.submitted_by})` : ''} — automatisch aufbereitet.`,
+          created.submitted_by || created.source_role
         ]
       );
       return {
@@ -367,7 +381,7 @@ export function createPostgresStore(pool) {
       return true;
     },
 
-    async upvoteStory(id, recalculated, delta = 1) {
+    async upvoteStory(id, recalculated, delta = 1, recordedBy = '') {
       const safeDelta = Math.max(1, Math.min(100, Number(delta) || 1));
       const res = await pool.query(
         `UPDATE feedback_stories
@@ -376,9 +390,80 @@ export function createPostgresStore(pool) {
         [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, safeDelta, id]
       );
       if (res.rowCount === 0) return null;
+      await pool.query(
+        `INSERT INTO story_mentions (story_id, delta, recorded_by) VALUES ($1, $2, $3)`,
+        [id, safeDelta, recordedBy || '']
+      );
       return {
         ...res.rows[0],
         trafficLight: calculateTrafficLight(res.rows[0].due_date)
+      };
+    },
+
+    async getReportData({ from, to, status, feasibility } = {}) {
+      const clauses = [];
+      const params = [];
+
+      if (from) {
+        params.push(from);
+        clauses.push(`f.created_at >= $${params.length}::date`);
+      }
+      if (to) {
+        params.push(to);
+        clauses.push(`f.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+      }
+      if (status && status !== 'Alle') {
+        if (status === 'Offen') {
+          clauses.push(`f.status IN ('Eingang', 'Geprüft', 'Bereit')`);
+        } else if (status === 'In Arbeit') {
+          clauses.push(`f.status IN ('In Arbeit', 'Angenommen')`);
+        } else {
+          params.push(status);
+          clauses.push(`f.status = $${params.length}`);
+        }
+      }
+      if (feasibility && feasibility !== 'Alle') {
+        params.push(feasibility);
+        clauses.push(`f.feasibility = $${params.length}`);
+      }
+
+      const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+      const storiesRes = await pool.query(
+        `SELECT f.*
+         FROM feedback_stories f
+         ${whereSql}
+         ORDER BY f.votes DESC, f.priority_score DESC, f.created_at DESC`,
+        params
+      );
+
+      const storyIds = storiesRes.rows.map((r) => r.id);
+      let mentionsByMonth = [];
+      if (storyIds.length > 0) {
+        const mParams = [storyIds];
+        const mClauses = ['story_id = ANY($1::int[])'];
+        if (from) {
+          mParams.push(from);
+          mClauses.push(`created_at >= $${mParams.length}::date`);
+        }
+        if (to) {
+          mParams.push(to);
+          mClauses.push(`created_at < ($${mParams.length}::date + INTERVAL '1 day')`);
+        }
+        const mRes = await pool.query(
+          `SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+                  COALESCE(SUM(delta), 0)::int AS total
+           FROM story_mentions
+           WHERE ${mClauses.join(' AND ')}
+           GROUP BY 1
+           ORDER BY 1 ASC`,
+          mParams
+        );
+        mentionsByMonth = mRes.rows;
+      }
+
+      return {
+        stories: storiesRes.rows,
+        mentionsByMonth
       };
     },
 

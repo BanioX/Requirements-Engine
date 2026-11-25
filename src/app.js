@@ -189,14 +189,116 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // CSV-Export für Excel
-  app.get('/api/stories/export/csv', async (_req, res, next) => {
+  // CSV-Export für Excel (unterstützt optional dieselben Zeitraum- & Querbeet-Filter wie der Report)
+  app.get('/api/stories/export/csv', async (req, res, next) => {
     try {
-      const stories = await store.listStories();
+      const hasReportFilters = req.query.from || req.query.to || req.query.status || req.query.feasibility;
+      const stories =
+        hasReportFilters && store.getReportData
+          ? (
+              await store.getReportData({
+                from: req.query.from,
+                to: req.query.to,
+                status: req.query.status,
+                feasibility: req.query.feasibility
+              })
+            ).stories
+          : await store.listStories();
       const csv = `\uFEFF${storiesToCsv(stories)}`;
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', 'attachment; filename="requirements-engine-backlog.csv"');
+      res.setHeader('Content-Disposition', 'attachment; filename="requirements-engine-report.csv"');
       res.send(csv);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Management-Report API (Zeitraum 01.01.XXXX - 31.12.XXXX, querbeet filterbar, Ressourcen & Credits)
+  app.get('/api/report', async (req, res, next) => {
+    try {
+      const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+      const from = isoDate.test(String(req.query.from || '')) ? String(req.query.from) : null;
+      const to = isoDate.test(String(req.query.to || '')) ? String(req.query.to) : null;
+      const status = req.query.status ? String(req.query.status) : 'Alle';
+      const feasibility = req.query.feasibility ? String(req.query.feasibility) : 'Alle';
+      const minutesPerRequest = Math.max(1, Math.min(60, Number(req.query.minutesPerRequest) || 6));
+
+      const data = await store.getReportData({ from, to, status, feasibility });
+      const stories = data.stories || [];
+
+      const totalStories = stories.length;
+      const totalMentions = stories.reduce((sum, s) => sum + (Number(s.votes) || 1), 0);
+      const totalHours = Math.round(((totalMentions * minutesPerRequest) / 60) * 10) / 10;
+      const totalWorkdays = Math.round((totalHours / 8.2) * 10) / 10;
+
+      const byFeasibility = {
+        einfach: stories.filter((s) => (s.feasibility || 'mittel') === 'einfach').length,
+        mittel: stories.filter((s) => (s.feasibility || 'mittel') === 'mittel').length,
+        aufwaendig: stories.filter((s) => (s.feasibility || 'mittel') === 'aufwaendig').length
+      };
+
+      const byStatus = {
+        offen: stories.filter((s) => ['Eingang', 'Geprüft', 'Bereit'].includes(s.status)).length,
+        inArbeit: stories.filter((s) => ['In Arbeit', 'Angenommen'].includes(s.status)).length,
+        erledigt: stories.filter((s) => s.status === 'Umgesetzt').length,
+        abgelehnt: stories.filter((s) => s.status === 'Abgelehnt').length
+      };
+
+      const byChannelMap = new Map();
+      const creditsMap = new Map();
+      for (const s of stories) {
+        const ch = s.channel || 'E-Mail';
+        byChannelMap.set(ch, (byChannelMap.get(ch) || 0) + (Number(s.votes) || 1));
+
+        const author = (s.submitted_by || '').trim() || 'Nicht angegeben';
+        const prev = creditsMap.get(author) || { name: author, ideas: 0, implemented: 0, mentions: 0 };
+        prev.ideas += 1;
+        prev.mentions += Number(s.votes) || 1;
+        if (s.status === 'Umgesetzt') prev.implemented += 1;
+        creditsMap.set(author, prev);
+      }
+
+      const credits = [...creditsMap.values()]
+        .filter((c) => c.name !== 'Nicht angegeben')
+        .sort((a, b) => b.implemented - a.implemented || b.mentions - a.mentions || b.ideas - a.ideas)
+        .slice(0, 10);
+
+      const topResourceDrivers = [...stories]
+        .sort((a, b) => (Number(b.votes) || 1) - (Number(a.votes) || 1))
+        .slice(0, 6)
+        .map((s) => {
+          const count = Number(s.votes) || 1;
+          return {
+            id: s.id,
+            title: s.title,
+            feasibility: s.feasibility || 'mittel',
+            status: s.status,
+            mentions: count,
+            hours: Math.round(((count * minutesPerRequest) / 60) * 10) / 10
+          };
+        });
+
+      const implementationRate =
+        totalStories > 0 ? Math.round((byStatus.erledigt / totalStories) * 100) : 0;
+
+      res.json({
+        filters: { from, to, status, feasibility, minutesPerRequest },
+        generatedAt: new Date().toISOString(),
+        summary: {
+          totalStories,
+          totalMentions,
+          totalHours,
+          totalWorkdays,
+          implementationRate
+        },
+        byFeasibility,
+        byStatus,
+        byChannel: [...byChannelMap.entries()].map(([channel, mentions]) => ({ channel, mentions })),
+        mentionsByMonth: data.mentionsByMonth || [],
+        topResourceDrivers,
+        credits,
+        stories
+      });
     } catch (err) {
       next(err);
     }
@@ -205,13 +307,14 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
   // Feedback einreichen -> automatisch übersetzen & speichern
   app.post('/api/stories', async (req, res, next) => {
     try {
-      const { rawFeedback, sourceRole, origin, channel, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
+      const { rawFeedback, sourceRole, origin, channel, submittedBy, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
       if (typeof rawFeedback !== 'string' || rawFeedback.trim().length > 2000) {
         return res.status(400).json({ error: 'Feedback muss ein Text mit maximal 2000 Zeichen sein.' });
       }
       const allowedChannels = new Set(['E-Mail', 'Telefon', 'Ticket / Chat', 'Intern / Team']);
       const safeChannel = allowedChannels.has(channel) ? channel : 'E-Mail';
       const resolvedOrigin = origin || (safeChannel === 'Intern / Team' ? 'betrieb' : 'kunde');
+      const safeAuthor = typeof submittedBy === 'string' ? submittedBy.trim().slice(0, 80) : '';
 
       const existing = await store.listStories();
       const analyzed = analyzeFeedback({
@@ -227,6 +330,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const created = await store.createStory({
         processId: processId ? parsePositiveId(processId) : null,
         channel: safeChannel,
+        submittedBy: safeAuthor,
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
