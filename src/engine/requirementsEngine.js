@@ -84,33 +84,31 @@ export function classifyRequirementType(rawText, feedbackType = 'idee') {
 function splitGoalAndBenefit(rawText) {
   const cleaned = cleanWhitespace(rawText).replace(/[.!?]+$/, '');
 
-  // Nach klaren Konjunktionen für Nutzen / Folge trennen
-  const benefitPatterns = [
-    /\s*,?\s*\bdamit\s+(.+)$/i,
-    /\s*,?\s*\bweil\s+(.+)$/i,
-    /\s*,?\s*\bsonst\s+(.+)$/i,
-    /\s*,?\s*\bda\s+sonst\s+(.+)$/i,
-    /\s*,?\s*\bum\s+(.+?)\s+zu\s+([^\s,.;!?]+.*)$/i,
-    /\s*,?\s*\bsodass\s+(.+)$/i
+  // Klar unterscheiden: positiver Nutzen ("damit", "um ... zu") vs. Problem-Ursache ("weil", "sonst", "sodass", "weshalb")
+  const patterns = [
+    { kind: 'benefit', regex: /\s*,?\s*\bdamit\s+(.+)$/i },
+    { kind: 'benefit', regex: /\s*,?\s*\bum\s+(.+?)\s+zu\s+([^\s,.;!?]+.*)$/i },
+    { kind: 'cause', regex: /\s*,?\s*\bweil\s+(.+)$/i },
+    { kind: 'cause', regex: /\s*,?\s*\bsonst\s+(.+)$/i },
+    { kind: 'cause', regex: /\s*,?\s*\bsodass\s+(.+)$/i },
+    { kind: 'cause', regex: /\s*,?\s*\bweshalb\s+(.+)$/i }
   ];
 
   let mainPart = cleaned;
   let benefitPart = '';
+  let partKind = 'none';
 
-  for (const regex of benefitPatterns) {
+  for (const { kind, regex } of patterns) {
     const match = cleaned.match(regex);
     if (match) {
       mainPart = cleaned.slice(0, match.index).replace(/[,;:\s]+$/, '');
-      if (match.length >= 3 && match[2]) {
-        benefitPart = `${match[1]} zu ${match[2]}`;
-      } else {
-        benefitPart = match[1];
-      }
+      benefitPart = match.length >= 3 && match[2] ? `${match[1]} zu ${match[2]}` : match[1];
+      partKind = kind;
       break;
     }
   }
 
-  return { mainPart, benefitPart };
+  return { mainPart, benefitPart, partKind };
 }
 
 /**
@@ -147,18 +145,17 @@ function normalizeGoalPhrase(mainPart, feedbackType) {
 /**
  * Formuliert den Nutzen für "damit ..."
  */
-function normalizeBenefitPhrase(benefitPart, feedbackType, reqType) {
+function normalizeBenefitPhrase(benefitPart, partKind, feedbackType, reqType) {
   const cleaned = cleanWhitespace(benefitPart);
   if (cleaned) {
-    // "sonst gehen Mahnungen vergessen" -> "weniger Fehler entstehen (bisher: sonst gehen Mahnungen vergessen)"
-    if (/(vergessen|ausfällt|ärger|beschwer|warten|verloren|schief|fehler)/i.test(cleaned)) {
-      return `Risiken und Reibung vermieden werden (Auslöser: ${lowercaseFirst(cleaned)})`;
+    if (partKind === 'cause' || /(vergessen|ausfällt|ärger|beschwer|warten|verloren|schief|fehler|versteckt|anruf|ticket|support|hotline|doppelt|nachfragen)/.test(cleaned)) {
+      return `Rückfragen und Reibung spürbar sinken (bisherige Ursache: ${lowercaseFirst(cleaned)})`;
     }
     return lowercaseFirst(cleaned);
   }
 
   if (feedbackType === 'kunden_aerger') {
-    return 'Kundenrückfragen sinken und das Vertrauen in den digitalen Service steigt';
+    return 'Kundenrückfragen sinken und das Erlebnis spürbar einfacher wird';
   }
   if (feedbackType === 'compliance') {
     return 'Fristen, Nachweise und Sicherheitsvorgaben lückenlos eingehalten werden';
@@ -166,7 +163,7 @@ function normalizeBenefitPhrase(benefitPart, feedbackType, reqType) {
   if (reqType.includes('Usability')) {
     return 'die Bedienung intuitiver wird und weniger Support-Aufwand entsteht';
   }
-  return 'wiederkehrende manuelle Arbeit reduziert und Prozessqualität gesichert wird';
+  return 'wiederkehrende manuelle Arbeit reduziert und Servicequalität gesichert wird';
 }
 
 /**
@@ -485,9 +482,9 @@ export function analyzeFeedback({
     : detectUrgency(cleaned);
 
   const reqType = classifyRequirementType(cleaned, resolvedType);
-  const { mainPart, benefitPart } = splitGoalAndBenefit(cleaned);
+  const { mainPart, benefitPart, partKind } = splitGoalAndBenefit(cleaned);
   const goalPhrase = normalizeGoalPhrase(mainPart, resolvedType);
-  const benefitPhrase = normalizeBenefitPhrase(benefitPart, resolvedType, reqType);
+  const benefitPhrase = normalizeBenefitPhrase(benefitPart, partKind, resolvedType, reqType);
 
   const title = buildShortTitle(mainPart, role);
   const userStory = `Als ${role} möchte ich ${goalPhrase}, damit ${benefitPhrase}.`;
