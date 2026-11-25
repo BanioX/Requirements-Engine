@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { calculateTrafficLight } from './engine/exporters.js';
+import { hashPassword } from './auth.js';
 
 const { Pool } = pg;
 
@@ -39,6 +40,15 @@ export async function initDatabase(pool) {
     CREATE TABLE IF NOT EXISTS app_meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS processes (
@@ -153,6 +163,19 @@ export async function initDatabase(pool) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  // Optionales Admin-Seeding aus lokalen Umgebungsvariablen (niemals hartcodiert im Repo)
+  const envAdminUser = String(process.env.ADMIN_USERNAME || '').trim().toLowerCase();
+  const envAdminPass = String(process.env.ADMIN_PASSWORD || '').trim();
+  if (envAdminUser.length >= 2 && envAdminPass.length >= 6) {
+    const existing = await pool.query(`SELECT id FROM users WHERE LOWER(username) = $1`, [envAdminUser]);
+    if (existing.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO users (username, display_name, role, password_hash) VALUES ($1, $2, 'admin', $3)`,
+        [envAdminUser, process.env.ADMIN_DISPLAY_NAME || 'Chef / Admin', hashPassword(envAdminPass)]
+      );
+    }
+  }
 }
 
 export function createPostgresStore(pool) {
@@ -169,6 +192,28 @@ export function createPostgresStore(pool) {
         [key, String(value)]
       );
       return String(value);
+    },
+
+    async countAdmins() {
+      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM users WHERE role = 'admin'`);
+      return res.rows[0]?.cnt ?? 0;
+    },
+
+    async findUserByUsername(username) {
+      const res = await pool.query(`SELECT * FROM users WHERE LOWER(username) = LOWER($1)`, [username]);
+      return res.rowCount > 0 ? res.rows[0] : null;
+    },
+
+    async createUser({ username, displayName, role = 'user', passwordHash }) {
+      const cleanUser = String(username || '').trim().toLowerCase();
+      const safeRole = role === 'admin' ? 'admin' : 'user';
+      const res = await pool.query(
+        `INSERT INTO users (username, display_name, role, password_hash)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, username, display_name, role, created_at`,
+        [cleanUser, String(displayName || cleanUser).trim().slice(0, 80), safeRole, passwordHash]
+      );
+      return res.rows[0];
     },
 
     async checkHealth() {

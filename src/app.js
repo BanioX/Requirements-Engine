@@ -9,6 +9,17 @@ import {
   storyToMarkdown
 } from './engine/exporters.js';
 import { pushStoryToJira, storiesToJiraCsv } from './engine/jiraBridge.js';
+import {
+  SESSION_COOKIE,
+  buildClearSessionCookie,
+  buildSessionCookie,
+  createSessionSecret,
+  hashPassword,
+  parseCookies,
+  signSessionToken,
+  verifyPassword,
+  verifySessionToken
+} from './auth.js';
 
 const ALLOWED_DECISION_STATUSES = new Set([
   'Eingang',
@@ -70,29 +81,54 @@ function createWriteRateLimiter({ windowMs = 60_000, maxRequests = 120 } = {}) {
   };
 }
 
-export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerPin } = {}) {
+export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerPin, sessionSecret } = {}) {
   const app = express();
   const startedAt = Date.now();
   const configuredManagerPin = String(managerPin ?? process.env.MANAGER_PIN ?? '').trim();
+  const signingSecret = createSessionSecret(sessionSecret ?? process.env.SESSION_SECRET);
+
+  function getSessionUser(req) {
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies[SESSION_COOKIE];
+    return verifySessionToken(token, signingSecret);
+  }
 
   function getClientToken(req) {
+    const user = getSessionUser(req);
+    if (user) return `u:${user.id}`;
     return String(req.headers['x-client-token'] || '')
       .replace(/[^a-zA-Z0-9_-]/g, '')
       .slice(0, 64);
   }
 
-  function isManagerRequest(req) {
+  async function isManagerRequest(req) {
+    const user = getSessionUser(req);
+    if (user && user.role === 'admin') return true;
     if (configuredManagerPin) {
       const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
-      return provided === configuredManagerPin;
+      if (provided === configuredManagerPin) return true;
     }
-    return String(req.headers['x-manager-mode'] || req.query.manager || '') === '1';
+    const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+    if (adminCount === 0 && !configuredManagerPin) {
+      return String(req.headers['x-manager-mode'] || req.query.manager || '') === '1';
+    }
+    return false;
   }
 
-  function requireManagerAccess(req, res, next) {
-    if (!configuredManagerPin) return next();
-    if (isManagerRequest(req)) return next();
-    return res.status(403).json({ error: 'Report-Export ist nur für Manager freigegeben.' });
+  async function requireManagerAccess(req, res, next) {
+    try {
+      const user = getSessionUser(req);
+      if (user && user.role === 'admin') return next();
+      if (configuredManagerPin) {
+        const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+        if (provided === configuredManagerPin) return next();
+      }
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      if (adminCount === 0 && !configuredManagerPin) return next();
+      return res.status(403).json({ error: 'Nur für Admin / Manager freigegeben. Bitte anmelden.' });
+    } catch (err) {
+      return next(err);
+    }
   }
 
   async function getCommentsVisibility() {
@@ -225,11 +261,116 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
+  // Authentifizierung (Profil / Login-Maske — Admin vs. Nutzer)
+  app.get('/api/auth/me', async (req, res, next) => {
+    try {
+      const user = getSessionUser(req);
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      res.json({
+        user,
+        hasAdmin: adminCount > 0,
+        managerPinRequired: Boolean(configuredManagerPin)
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/auth/register', async (req, res, next) => {
+    try {
+      if (!store.findUserByUsername || !store.createUser) {
+        return res.status(501).json({ error: 'Benutzerverwaltung nicht verfügbar.' });
+      }
+      const username = String(req.body?.username || '').trim().toLowerCase();
+      const displayName = String(req.body?.displayName || '').trim().slice(0, 80);
+      const password = String(req.body?.password || '');
+
+      if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+        return res.status(400).json({ error: 'Benutzername: 3–32 Zeichen (Buchstaben, Zahlen, . _ -).' });
+      }
+      if (password.length < 6 || password.length > 128) {
+        return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein.' });
+      }
+
+      const existing = await store.findUserByUsername(username);
+      if (existing) {
+        return res.status(409).json({ error: 'Dieser Benutzername ist bereits vergeben.' });
+      }
+
+      // Erster Account im System wird automatisch Admin (Chef), alle weiteren starten als Nutzer
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      const currentUser = getSessionUser(req);
+      const requestedRole = req.body?.role === 'admin' ? 'admin' : 'user';
+      const role = adminCount === 0 ? 'admin' : currentUser?.role === 'admin' ? requestedRole : 'user';
+
+      const created = await store.createUser({
+        username,
+        displayName: displayName || username,
+        role,
+        passwordHash: hashPassword(password)
+      });
+
+      const sessionUser = {
+        id: created.id,
+        username: created.username,
+        displayName: created.display_name,
+        role: created.role
+      };
+      const token = signSessionToken(sessionUser, signingSecret);
+      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+      res.setHeader('Set-Cookie', buildSessionCookie(token, { secure: isHttps }));
+      res.status(201).json({ user: sessionUser, hasAdmin: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res, next) => {
+    try {
+      if (!store.findUserByUsername) {
+        return res.status(501).json({ error: 'Benutzerverwaltung nicht verfügbar.' });
+      }
+      const username = String(req.body?.username || '').trim().toLowerCase();
+      const password = String(req.body?.password || '');
+      if (!username || !password) {
+        return res.status(400).json({ error: 'Benutzername und Passwort eingeben.' });
+      }
+      const user = await store.findUserByUsername(username);
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        return res.status(401).json({ error: 'Benutzername oder Passwort ungültig.' });
+      }
+      const sessionUser = {
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name,
+        role: user.role === 'admin' ? 'admin' : 'user'
+      };
+      const token = signSessionToken(sessionUser, signingSecret);
+      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+      res.setHeader('Set-Cookie', buildSessionCookie(token, { secure: isHttps }));
+      res.json({ user: sessionUser });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/auth/logout', (_req, res) => {
+    res.setHeader('Set-Cookie', buildClearSessionCookie());
+    res.json({ ok: true });
+  });
+
   // Betriebs-Einstellungen (Kommentar-Sichtbarkeit: 'all' vs. 'own_only' — durch Chef umschaltbar)
   app.get('/api/settings', async (_req, res, next) => {
     try {
-      const commentsVisibility = await getCommentsVisibility();
-      res.json({ commentsVisibility, managerPinRequired: Boolean(configuredManagerPin) });
+      const [commentsVisibility, adminCount] = await Promise.all([
+        getCommentsVisibility(),
+        store.countAdmins ? store.countAdmins() : 0
+      ]);
+      res.json({
+        commentsVisibility,
+        hasAdmin: adminCount > 0,
+        managerPinRequired: Boolean(configuredManagerPin)
+      });
     } catch (err) {
       next(err);
     }
@@ -253,16 +394,16 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   // Stories auflisten (filtert Entscheid-Kommentare wenn Chef 'own_only' aktiviert hat)
   app.get('/api/stories', async (req, res, next) => {
     try {
-      const [stories, visibility] = await Promise.all([
+      const [stories, visibility, manager] = await Promise.all([
         store.listStories({
           status: req.query.status,
           moscow: req.query.moscow,
           q: req.query.q,
           sort: req.query.sort
         }),
-        getCommentsVisibility()
+        getCommentsVisibility(),
+        isManagerRequest(req)
       ]);
-      const manager = isManagerRequest(req);
       const token = getClientToken(req);
 
       const sanitized = stories.map((s) => {
@@ -520,7 +661,10 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
       const safeChannel = allowedChannels.has(channel) ? channel : '';
       const resolvedOrigin = origin || 'kunde';
-      const safeAuthor = typeof submittedBy === 'string' ? submittedBy.trim().slice(0, 80) : '';
+      const sessionUser = getSessionUser(req);
+      const safeAuthor =
+        (typeof submittedBy === 'string' && submittedBy.trim().slice(0, 80)) ||
+        (sessionUser ? sessionUser.displayName : '');
       const safeRef = typeof interactionRef === 'string' ? interactionRef.trim().slice(0, 64) : '';
       const safeCustomer = typeof customerRef === 'string' ? customerRef.trim().slice(0, 100) : '';
       const parsedDuration = parseDurationSeconds(durationSeconds, durationText);
@@ -578,11 +722,11 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
-      const [allMentions, visibility] = await Promise.all([
+      const [allMentions, visibility, manager] = await Promise.all([
         store.listStoryMentions ? store.listStoryMentions(id, req.query.limit) : [],
-        getCommentsVisibility()
+        getCommentsVisibility(),
+        isManagerRequest(req)
       ]);
-      const manager = isManagerRequest(req);
       const token = getClientToken(req);
 
       const visible =
@@ -617,7 +761,10 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
       const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
       const safeChannel = allowedChannels.has(req.body?.channel) ? req.body.channel : '';
-      const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
+      const sessionUser = getSessionUser(req);
+      const recordedBy =
+        (typeof req.body?.recordedBy === 'string' && req.body.recordedBy.trim().slice(0, 80)) ||
+        (sessionUser ? sessionUser.displayName : '');
       const interactionRef = typeof req.body?.interactionRef === 'string' ? req.body.interactionRef.trim().slice(0, 64) : '';
       const feedbackNote = typeof req.body?.feedbackNote === 'string' ? req.body.feedbackNote.trim().slice(0, 1000) : '';
       const customerRef = typeof req.body?.customerRef === 'string' ? req.body.customerRef.trim().slice(0, 100) : '';

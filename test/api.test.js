@@ -6,6 +6,7 @@ function createMockStore({ dbHealthy = true } = {}) {
   const stories = [];
   const mentions = [];
   const settings = new Map();
+  const users = [];
   const processes = [
     {
       id: 1,
@@ -32,6 +33,23 @@ function createMockStore({ dbHealthy = true } = {}) {
     async setSetting(key, value) {
       settings.set(key, String(value));
       return String(value);
+    },
+    async countAdmins() {
+      return users.filter((u) => u.role === 'admin').length;
+    },
+    async findUserByUsername(username) {
+      return users.find((u) => u.username.toLowerCase() === String(username).toLowerCase()) || null;
+    },
+    async createUser({ username, displayName, role, passwordHash }) {
+      const u = {
+        id: users.length + 1,
+        username,
+        display_name: displayName,
+        role,
+        password_hash: passwordHash
+      };
+      users.push(u);
+      return u;
     },
     async checkHealth() {
       if (!dbHealthy) throw new Error('DB connection refused');
@@ -400,6 +418,44 @@ test('Chef-Schalter: Kommentar-Sichtbarkeit umschaltbar zwischen all und own_onl
     assert.equal(onlyB.length, 1);
     assert.equal(onlyB[0].feedback_note, 'Kommentar von User B');
     assert.equal(chefAll.length, 2);
+  });
+});
+
+test('Auth & Rollen: Erster Account wird Admin (Chef), zweiter Nutzer hat keinen Report-Zugriff (HTTP 403)', async () => {
+  const app = createApp({ store: createMockStore({ dbHealthy: true }), sessionSecret: 'test-session-secret-123456' });
+
+  await withServer(app, async (baseUrl) => {
+    // 1. Erster Account wird automatisch Admin
+    const regAdmin = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'chef', displayName: 'Alban Chef', password: 'secret-password-1' })
+    });
+    assert.equal(regAdmin.status, 201);
+    const adminCookie = regAdmin.headers.get('set-cookie').split(';')[0];
+    const adminData = await regAdmin.json();
+    assert.equal(adminData.user.role, 'admin');
+
+    // 2. Zweiter Account wird automatisch normaler Nutzer
+    const regUser = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'mitarbeiter', displayName: 'Max Nutzer', password: 'secret-password-2' })
+    });
+    assert.equal(regUser.status, 201);
+    const userCookie = regUser.headers.get('set-cookie').split(';')[0];
+    const userData = await regUser.json();
+    assert.equal(userData.user.role, 'user');
+
+    // 3. Normaler Nutzer darf Report & CSV NICHT abrufen (HTTP 403)
+    const deniedRep = await fetch(`${baseUrl}/api/report`, { headers: { cookie: userCookie } });
+    assert.equal(deniedRep.status, 403);
+    const deniedCsv = await fetch(`${baseUrl}/api/stories/export/csv`, { headers: { cookie: userCookie } });
+    assert.equal(deniedCsv.status, 403);
+
+    // 4. Admin (Chef) hat vollen Zugriff (HTTP 200)
+    const okRep = await fetch(`${baseUrl}/api/report`, { headers: { cookie: adminCookie } });
+    assert.equal(okRep.status, 200);
   });
 });
 
