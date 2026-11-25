@@ -3,46 +3,29 @@ import { calculateTrafficLight } from './engine/exporters.js';
 
 const { Pool } = pg;
 
-function buildDemoSvgDataUrl() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440">
-    <rect width="800" height="440" fill="#0f172a"/>
-    <rect x="0" y="0" width="800" height="52" fill="#1e293b"/>
-    <text x="24" y="32" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">eBanking Admin-Portal — Kontosicherheit &amp; Support</text>
-    <rect x="24" y="76" width="210" height="336" rx="10" fill="#1e293b" stroke="#334155"/>
-    <text x="42" y="110" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif" font-size="13">NAVIGATION</text>
-    <rect x="36" y="126" width="186" height="36" rx="6" fill="#0f766e"/>
-    <text x="50" y="149" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Kontosperren &amp; PIN</text>
-    <text x="50" y="192" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="14">TWINT-Limiten</text>
-    <text x="50" y="226" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="14">Zertifikate &amp; Wartung</text>
-    <text x="50" y="260" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="14">Audit-Protokoll</text>
-    <rect x="256" y="76" width="520" height="336" rx="10" fill="#1e293b" stroke="#334155"/>
-    <text x="280" y="114" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Vertrag #EB-DEMO-4821 — Status: Gesperrt (3x Fehl-PIN)</text>
-    <rect x="280" y="136" width="472" height="58" rx="8" fill="#3b1d2a" stroke="#be123c"/>
-    <text x="298" y="162" fill="#fecdd3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">Sicherheitsprüfung erforderlich vor Entsperrung</text>
-    <text x="298" y="182" fill="#fda4af" font-family="Segoe UI, Arial, sans-serif" font-size="12">Identität telefonisch mittels 2-Faktor-Rückruf verifizieren (keine Ausnahmen).</text>
-    <rect x="280" y="218" width="224" height="44" rx="8" fill="#0d9488"/>
-    <text x="312" y="245" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Rückruf-Code prüfen</text>
-    <rect x="524" y="218" width="228" height="44" rx="8" fill="#2563eb"/>
-    <text x="562" y="245" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Login entsperren</text>
-    <rect x="280" y="290" width="472" height="96" rx="8" fill="#0f172a" stroke="#334155"/>
-    <text x="298" y="318" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif" font-size="12">LETZTE EREIGNISSE (DEMO-DATEN)</text>
-    <text x="298" y="344" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="13">• 08:14 Mobile-App Fehl-PIN (Versuch 3/3) → Automatische Sperre</text>
-    <text x="298" y="368" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="13">• 08:21 Ticket im eBanking-Support eröffnet</text>
-  </svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
-}
-
 export function createPool() {
-  if (process.env.DATABASE_URL) {
-    return new Pool({ connectionString: process.env.DATABASE_URL });
-  }
-  return new Pool({
-    host: process.env.POSTGRES_HOST || 'db',
-    port: Number(process.env.POSTGRES_PORT || 5432),
-    database: process.env.POSTGRES_DB || 'reqengine',
-    user: process.env.POSTGRES_USER || 'reqengine',
-    password: process.env.POSTGRES_PASSWORD
+  const baseOpts = {
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 3000
+  };
+  const pool = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL, ...baseOpts })
+    : new Pool({
+        host: process.env.POSTGRES_HOST || 'db',
+        port: Number(process.env.POSTGRES_PORT || 5432),
+        database: process.env.POSTGRES_DB || 'reqengine',
+        user: process.env.POSTGRES_USER || 'reqengine',
+        password: process.env.POSTGRES_PASSWORD,
+        ...baseOpts
+      });
+
+  // Fireproof: Idle-Client-Verbindungsabbrüche (z. B. DB-Neustart) abfangen, damit der Node-Prozess nie abstürzt
+  pool.on('error', (err) => {
+    console.error('[DB-Pool] Verbindung unterbrochen (Auto-Reconnect aktiv):', err.message);
   });
+
+  return pool;
 }
 
 function addDays(date, days) {
@@ -109,6 +92,7 @@ export async function initDatabase(pool) {
     );
 
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'kunde';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'E-Mail';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'mittel';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS public_response TEXT NOT NULL DEFAULT '';
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT '';
@@ -124,223 +108,6 @@ export async function initDatabase(pool) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
-
-  const seededCheck = await pool.query(`SELECT value FROM app_meta WHERE key = 'seeded'`);
-  if (seededCheck.rowCount === 0) {
-    await seedInitialDemoData(pool);
-  }
-}
-
-async function seedInitialDemoData(pool) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const now = new Date();
-    const demoImg = buildDemoSvgDataUrl();
-
-    // Prozess 1: eBanking (Bald prüfen — Gelb)
-    const p1 = await client.query(
-      `INSERT INTO processes (title, category, owner_role, summary, review_interval_days, next_review_at, version_nr)
-       VALUES ($1, $2, $3, $4, $5, $6, 2) RETURNING id`,
-      [
-        'Mobile-Banking Login-Sperre prüfen & sicher entsperren',
-        'eBanking-Support',
-        'eBanking-Support',
-        'Standard-Klick-Anleitung für gesperrte Mobile-Banking-Zugänge nach 3 fehlgeschlagenen PIN-Eingaben (anonymisierte Demo-Abläufe).',
-        90,
-        addDays(now, 8)
-      ]
-    );
-    const p1Id = p1.rows[0].id;
-
-    await client.query(
-      `INSERT INTO process_steps (process_id, step_order, action_title, ui_target, details, hint_type, screenshot_data, markers_json)
-       VALUES
-       ($1, 1, 'Vertrag im Admin-Portal öffnen & Rückruf-Code prüfen', 'Admin-Portal → Kontosperren & PIN', 'Kundenidentität zwingend über registrierte Telefonnummer verifizieren, bevor eine Entsperrung ausgelöst wird.', 'warn', $2, $3::jsonb),
-       ($1, 2, 'Sperrgrund im Ereignis-Protokoll gegenprüfen', 'Vertragsansicht → Letzte Ereignisse', 'Prüfen, ob nur Fehl-PIN vorliegt oder verdächtige Ausland-Logins sichtbar sind (bei Verdacht an Fraud-Team eskalieren).', 'info', NULL, '[]'::jsonb),
-       ($1, 3, 'Entsperrung auslösen & Test-Login begleiten', 'Schaltfläche «Login entsperren»', 'Kundschaft im Telefonat kurz testen lassen, ob das Mobile Banking wieder sauber startet und keine alte App-Version blockiert.', 'tip', NULL, '[]'::jsonb)`,
-      [
-        p1Id,
-        demoImg,
-        JSON.stringify([
-          { x: 16, y: 33, label: 'Kontosperren öffnen' },
-          { x: 49, y: 54, label: 'Rückruf-Code prüfen' },
-          { x: 79, y: 54, label: 'Login entsperren' }
-        ])
-      ]
-    );
-
-    // Prozess 2: IT-Betrieb / eBanking Wartung (Überfällig — Rot!)
-    const p2 = await client.query(
-      `INSERT INTO processes (title, category, owner_role, summary, review_interval_days, next_review_at, version_nr)
-       VALUES ($1, $2, $3, $4, $5, $6, 1) RETURNING id`,
-      [
-        'eBanking-Zertifikats- & Backup-Restore-Kontrolle',
-        'IT-Betrieb',
-        'IT-Betrieb',
-        'Quartalsweise Prüfung aller TLS-Zertifikate, Healthchecks und einer echten Backup-Wiederherstellung in der Testumgebung.',
-        90,
-        addDays(now, -3)
-      ]
-    );
-    const p2Id = p2.rows[0].id;
-
-    await client.query(
-      `INSERT INTO process_steps (process_id, step_order, action_title, ui_target, details, hint_type)
-       VALUES
-       ($1, 1, 'Ablaufdaten aller produktiven Zertifikate prüfen', 'Monitoring → Zertifikate', 'Alle Zertifikate mit Restlaufzeit unter 30 Tagen sofort zur Erneuerung einplanen.', 'warn'),
-       ($1, 2, 'Datenbank-Dump in isolierte Test-Instanz einspielen', 'Docker Test-Stack → pg_restore', 'Verifizieren, dass die Tabellen vollständig geladen werden und /health HTTP 200 liefert.', 'info'),
-       ($1, 3, 'Prüfresultat mit Datum im Audit-Protokoll abhaken', 'Requirements Engine → Als aktuell bestätigen', 'Durch den Klick wird automatisch das nächste Quartals-Review berechnet.', 'tip')`,
-      [p2Id]
-    );
-
-    // Prozess 3: Branchenneutrales KMU-Beispiel (Aktuell — Grün)
-    const p3 = await client.query(
-      `INSERT INTO processes (title, category, owner_role, summary, review_interval_days, next_review_at, version_nr)
-       VALUES ($1, $2, $3, $4, $5, $6, 1) RETURNING id`,
-      [
-        'Monatsabschluss-Belege prüfen & freigeben (KMU-Standard)',
-        'Buchhaltung',
-        'Buchhaltung',
-        'Branchenneutraler Ablauf zur strukturierten Prüfung offener Kreditoren und Fristen vor Monatsende.',
-        180,
-        addDays(now, 64)
-      ]
-    );
-    const p3Id = p3.rows[0].id;
-
-    await client.query(
-      `INSERT INTO process_steps (process_id, step_order, action_title, ui_target, details, hint_type)
-       VALUES
-       ($1, 1, 'Offene Posten nach Fälligkeit sortieren', 'ERP → Kreditoren → Offene Posten', 'Alle Belege mit Fälligkeit innerhalb der nächsten 10 Tage markieren.', 'info'),
-       ($1, 2, 'Vier-Augen-Freigabe über CHF 5000 einholen', 'Freigabe-Workflow → Stellvertretung', 'Bei Abwesenheit der Leitung greift automatisch die hinterlegte Stellvertretung.', 'warn')`,
-      [p3Id]
-    );
-
-    // Branchenneutrale Demo-Ideen mit geschlossenem Feedback-Loop (Kunden-Wording vs. interne Notiz)
-    const s1 = await client.query(
-      `INSERT INTO feedback_stories
-       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
-      [
-        null,
-        'kunde',
-        'einfach',
-        'Nutzende (Self-Service)',
-        'kunden_aerger',
-        'hoch',
-        'Nutzende können aktuell keinen eigenen Auszug oder Beleg für einen freien Zeitraum als PDF erstellen und müssen dafür jedes Mal den Support kontaktieren.',
-        'Eigenen Auszug / Beleg direkt als PDF im Self-Service erstellen',
-        'Als Nutzende (Self-Service) möchte ich Auszüge und Belege für beliebige Zeiträume selbst als PDF herunterladen, damit weniger Support-Tickets entstehen und ich sofort mein Dokument habe.',
-        'FA: Funktionale Anforderung',
-        'Must',
-        'S',
-        94,
-        11,
-        JSON.stringify([
-          { id: 'T1', title: 'Zeitraum-Auswahl und PDF-Export im Benutzerbereich ergänzen', estimateHours: 2.5, done: true },
-          { id: 'T2', title: 'Stichprobe für korrekte Daten & UTF-8-Darstellung prüfen', estimateHours: 1.5, done: false },
-          { id: 'T3', title: 'Abnahmetest durchführen und kurz im Changelog ankündigen', estimateHours: 1, done: false }
-        ]),
-        JSON.stringify([
-          'Gegeben ein angemeldeter Account, wenn ein Zeitraum gewählt und Export ausgelöst wird, dann steht das PDF innert < 3 Sekunden zum Download bereit.',
-          'Gegeben ungültige Datumsbereiche, wenn der Export gestartet wird, dann erscheint ein klarer Hinweis ohne Absturz.'
-        ]),
-        'In Arbeit',
-        'Klarer Quick Win: rund 35 wiederkehrende Support-Anfragen pro Woche fallen direkt weg.',
-        'Vielen Dank für das starke Feedback! Wir arbeiten bereits daran — der selbstständige PDF-Export erscheint im nächsten Release.',
-        'INTERN: Hohe Entlastung im 1st-Level-Support (~35 Tickets/Woche). PDF-Generator ist bereits lizenziert, Aufwand ca. 5h.',
-        addDays(now, 12)
-      ]
-    );
-
-    const s2 = await client.query(
-      `INSERT INTO feedback_stories
-       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
-      [
-        null,
-        'betrieb',
-        'einfach',
-        'Support & Betrieb',
-        'kunden_aerger',
-        'kritisch',
-        'Bei 3 falschen Login-Versuchen erscheint nur eine unklare Fehlermeldung statt eines direkten Hinweises zur Entsperrung — deshalb rufen täglich dutzende Personen bei der Hotline an.',
-        'Verständliche Fehlermeldung mit direktem Lösungsschritt bei Login-Sperre',
-        'Als Support & Betrieb möchte ich bei gesperrtem Login eine klare Meldung mit direktem nächstem Schritt anzeigen, damit Rückfragen an die Hotline deutlich sinken.',
-        'NFA: Usability & Kundenerlebnis',
-        'Must',
-        'S',
-        86,
-        8,
-        JSON.stringify([
-          { id: 'T1', title: 'Fehlermeldung in einfacher, klarer Sprache formulieren', estimateHours: 1, done: true },
-          { id: 'T2', title: 'Direkten Link zur geführten Passwort-/PIN-Hilfe einbauen', estimateHours: 2, done: true },
-          { id: 'T3', title: 'Sicherheitsprüfung (keine Preisgabe sensibler Kontodaten) durchführen', estimateHours: 1.5, done: true }
-        ]),
-        JSON.stringify([
-          'Gegeben eine fehlgeschlagene Anmeldung, wenn die Sperre greift, dann erklärt das System klar den nächsten Schritt.',
-          'Gegeben ein Sicherheitstest, wenn fremde Zugangsdaten probiert werden, dann werden keine Kontodetails offengelegt.'
-        ]),
-        'Umgesetzt',
-        'Umgesetzt und live — Support-Rückfragen bereits um 40 % gesunken.',
-        'Gute Nachricht: Die neue, verständliche Hilfemeldung bei Login-Sperren ist ab sofort aktiv!',
-        'INTERN: Sicherheits-Review bestanden (kein User-Enumeration-Risiko). Hotline-Entlastung messbar ab Woche 1.',
-        null
-      ]
-    );
-
-    const s3 = await client.query(
-      `INSERT INTO feedback_stories
-       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
-      [
-        null,
-        'kunde',
-        'aufwaendig',
-        'Nutzende & Support',
-        'idee',
-        'normal',
-        'Nutzende wünschen sich eine dauerhafte Anmeldung ohne erneute Sicherheitsprüfung auf demselben Gerät, damit der Zugriff schneller geht.',
-        'Dauerhafte Anmeldung ohne 2-Faktor-Prüfung auf bekanntem Gerät',
-        'Als Nutzende möchte ich angemeldet bleiben ohne erneute Prüfung, damit ich schneller auf meine Daten zugreife.',
-        'NFA: Sicherheit & Compliance',
-        'Could',
-        'L',
-        26,
-        4,
-        JSON.stringify([
-          { id: 'T1', title: 'Regulatorische Vorgaben & Sicherheitsrisiko prüfen', estimateHours: 2, done: true }
-        ]),
-        JSON.stringify([
-          'Gegeben Sicherheitsrichtlinien, wenn eine Sitzung abläuft, dann bleibt eine starke Authentifizierung zwingend.'
-        ]),
-        'Abgelehnt',
-        'Aus Sicherheits- und Compliance-Gründen nicht umsetzbar.',
-        'Danke für den Vorschlag! Zum Schutz deiner Daten können wir die Sicherheitsprüfung leider nicht dauerhaft abschalten. Wir prüfen stattdessen eine schnellere Anmeldung per Biometrie.',
-        'INTERN (vertraulich): Audit-Auflage & revDSG untersagen unbefristete Sessions ohne Re-Auth. Alternative Biometrie-Login für Q3 vorgemerkt.',
-        null
-      ]
-    );
-
-    await client.query(
-      `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
-       VALUES
-       ('story', $1, 'Eigenen Auszug / Beleg direkt als PDF im Self-Service erstellen', 'In Arbeit', 'Quick Win mit grosser Entlastung im Support.', 'Betrieb & Produkt'),
-       ('story', $2, 'Verständliche Fehlermeldung mit direktem Lösungsschritt bei Login-Sperre', 'Umgesetzt', 'Live geschaltet; Hotline-Rückfragen deutlich reduziert.', 'Support & Betrieb'),
-       ('story', $3, 'Dauerhafte Anmeldung ohne 2-Faktor-Prüfung auf bekanntem Gerät', 'Abgelehnt', 'Wegen Sicherheits- und Audit-Vorgaben abgelehnt; freundliches Kunden-Wording veröffentlicht.', 'Sicherheit & Betrieb')`,
-      [s1.rows[0].id, s2.rows[0].id, s3.rows[0].id]
-    );
-
-    await client.query(`INSERT INTO app_meta (key, value) VALUES ('seeded', 'true')`);
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 export function createPostgresStore(pool) {
@@ -553,12 +320,13 @@ export function createPostgresStore(pool) {
     async createStory(payload) {
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14::jsonb,$15::jsonb,'Eingang',$16)
+         (process_id, origin, channel, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15::jsonb,$16::jsonb,'Eingang',$17)
          RETURNING *`,
         [
           payload.processId || null,
           payload.origin || 'kunde',
+          payload.channel || 'E-Mail',
           payload.feasibility || 'mittel',
           payload.sourceRole,
           payload.feedbackType,
@@ -578,11 +346,11 @@ export function createPostgresStore(pool) {
       const created = res.rows[0];
       await pool.query(
         `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
-         VALUES ('story', $1, $2, 'Automatisch erfasst', $3, $4)`,
+         VALUES ('story', $1, $2, 'Eingegangenes Feedback', $3, $4)`,
         [
           created.id,
           created.title,
-          `Feedback (${created.origin === 'betrieb' ? 'Betrieb' : 'Kundschaft'}) automatisch in User Story (${created.moscow}, Machbarkeit: ${created.feasibility}) übersetzt.`,
+          `Eingegangen via ${created.channel} — automatisch als User Story (${created.moscow}, Machbarkeit: ${created.feasibility}) aufbereitet.`,
           created.source_role
         ]
       );
@@ -590,6 +358,13 @@ export function createPostgresStore(pool) {
         ...created,
         trafficLight: calculateTrafficLight(created.due_date)
       };
+    },
+
+    async deleteStory(id) {
+      const del = await pool.query(`DELETE FROM feedback_stories WHERE id = $1 RETURNING id`, [id]);
+      if (del.rowCount === 0) return false;
+      await pool.query(`DELETE FROM decision_log WHERE entity_type = 'story' AND entity_id = $1`, [id]);
+      return true;
     },
 
     async upvoteStory(id, recalculated) {

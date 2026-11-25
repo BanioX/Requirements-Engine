@@ -20,7 +20,33 @@ const ALLOWED_DECISION_STATUSES = new Set([
   'Umgesetzt'
 ]);
 
-export function createApp({ store, buildInfo = {} }) {
+function parsePositiveId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function createWriteRateLimiter({ windowMs = 60_000, maxRequests = 120 } = {}) {
+  const hits = new Map();
+  return (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      return next();
+    }
+    const key = req.ip || 'local';
+    const now = Date.now();
+    const entry = hits.get(key);
+    if (!entry || now > entry.resetAt) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    entry.count += 1;
+    if (entry.count > maxRequests) {
+      return res.status(429).json({ error: 'Zu viele Anfragen. Bitte kurz warten.' });
+    }
+    return next();
+  };
+}
+
+export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
   const app = express();
   const startedAt = Date.now();
   const versionInfo = {
@@ -29,21 +55,41 @@ export function createApp({ store, buildInfo = {} }) {
     buildTime: buildInfo.buildTime || process.env.BUILD_TIME || new Date().toISOString()
   };
 
+  // Confluence / Intranet Embed-Freigabe via Umgebungsvariable (Default: sicher nur 'self')
+  const rawOrigins = embedAllowedOrigins ?? process.env.EMBED_ALLOWED_ORIGINS ?? '';
+  const allowedFrames = rawOrigins
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const frameAncestors = allowedFrames.length > 0 ? ["'self'", ...allowedFrames] : ["'self'"];
+
+  app.disable('x-powered-by');
   app.use(
     helmet({
+      frameguard: allowedFrames.length > 0 ? false : { action: 'sameorigin' },
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'"]
+          connectSrc: ["'self'"],
+          frameAncestors
         }
       }
     })
   );
 
-  app.use(express.json({ limit: '6mb' }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use('/api', createWriteRateLimiter());
+
+  // Ungültiges JSON sauber mit HTTP 400 abfangen (statt 500)
+  app.use((err, _req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+      return res.status(400).json({ error: 'Ungültiges JSON-Format.' });
+    }
+    return next(err);
+  });
 
   const publicDir = path.resolve(import.meta.dirname, 'public');
   app.use(express.static(publicDir));
@@ -159,12 +205,19 @@ export function createApp({ store, buildInfo = {} }) {
   // Feedback einreichen -> automatisch übersetzen & speichern
   app.post('/api/stories', async (req, res, next) => {
     try {
-      const { rawFeedback, sourceRole, origin, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
+      const { rawFeedback, sourceRole, origin, channel, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
+      if (typeof rawFeedback !== 'string' || rawFeedback.trim().length > 2000) {
+        return res.status(400).json({ error: 'Feedback muss ein Text mit maximal 2000 Zeichen sein.' });
+      }
+      const allowedChannels = new Set(['E-Mail', 'Telefon', 'Ticket / Chat', 'Intern / Team']);
+      const safeChannel = allowedChannels.has(channel) ? channel : 'E-Mail';
+      const resolvedOrigin = origin || (safeChannel === 'Intern / Team' ? 'betrieb' : 'kunde');
+
       const existing = await store.listStories();
       const analyzed = analyzeFeedback({
         rawFeedback,
         sourceRole,
-        origin,
+        origin: resolvedOrigin,
         feasibility,
         feedbackType,
         urgency,
@@ -172,7 +225,8 @@ export function createApp({ store, buildInfo = {} }) {
       });
 
       const created = await store.createStory({
-        processId: processId ? Number(processId) : null,
+        processId: processId ? parsePositiveId(processId) : null,
+        channel: safeChannel,
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -187,10 +241,24 @@ export function createApp({ store, buildInfo = {} }) {
     }
   });
 
+  // Eintrag entfernen (für den Betrieb)
+  app.delete('/api/stories/:id', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const ok = await store.deleteStory(id);
+      if (!ok) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // Upvote (+1 Nutzen) mit automatischer Impact- & Quick-Win-Neuberechnung
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
 
@@ -213,7 +281,8 @@ export function createApp({ store, buildInfo = {} }) {
   // Machbarkeit bewerten (einfach / mittel / aufwaendig -> Quick-Win-Score aktualisiert sich live!)
   app.patch('/api/stories/:id/feasibility', async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const { feasibility } = req.body || {};
       if (!['einfach', 'mittel', 'aufwaendig'].includes(feasibility)) {
         return res.status(400).json({ error: 'Machbarkeit muss einfach, mittel oder aufwaendig sein.' });
@@ -240,7 +309,9 @@ export function createApp({ store, buildInfo = {} }) {
   // Task abhaken / wieder öffnen
   app.patch('/api/stories/:id/tasks/:taskId', async (req, res, next) => {
     try {
-      const updated = await store.toggleStoryTask(Number(req.params.id), req.params.taskId);
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const updated = await store.toggleStoryTask(id, req.params.taskId);
       if (!updated) return res.status(404).json({ error: 'Story oder Task nicht gefunden.' });
       res.json(updated);
     } catch (err) {
@@ -251,21 +322,24 @@ export function createApp({ store, buildInfo = {} }) {
   // Entscheid fällen: getrenntes Kunden-Wording (öffentlich) & interne Begründung (vertraulich)
   app.post('/api/stories/:id/decision', async (req, res, next) => {
     try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const { status, reason, publicResponse, internalNote, dueDate, actorRole } = req.body || {};
       if (!ALLOWED_DECISION_STATUSES.has(status)) {
         return res.status(400).json({ error: 'Ungültiger Entscheid-Status.' });
       }
       const customerText = String(publicResponse || reason || '').trim();
-      if (customerText.length < 5) {
-        return res.status(400).json({ error: 'Bitte eine kurze Begründung / Antwort an Nutzende (mind. 5 Zeichen) angeben.' });
+      if (customerText.length < 5 || customerText.length > 1500) {
+        return res.status(400).json({ error: 'Bitte ein Kunden-Wording zwischen 5 und 1500 Zeichen angeben.' });
       }
-      const updated = await store.decideStory(Number(req.params.id), {
+      const internalText = internalNote !== undefined ? String(internalNote).trim().slice(0, 1500) : undefined;
+      const updated = await store.decideStory(id, {
         status,
         reason: customerText,
         publicResponse: customerText,
-        internalNote: internalNote !== undefined ? String(internalNote).trim() : undefined,
+        internalNote: internalText,
         dueDate: dueDate || null,
-        actorRole: actorRole ? String(actorRole).trim() : 'Betriebsverantwortung'
+        actorRole: actorRole ? String(actorRole).trim().slice(0, 80) : 'Betriebsverantwortung'
       });
       if (!updated) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
       res.json(updated);
@@ -277,7 +351,9 @@ export function createApp({ store, buildInfo = {} }) {
   // Einzel-Story als Markdown exportieren
   app.get('/api/stories/:id/export/markdown', async (req, res, next) => {
     try {
-      const story = await store.getStoryById(Number(req.params.id));
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const story = await store.getStoryById(id);
       if (!story) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
       res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="REQ-${story.id}.md"`);

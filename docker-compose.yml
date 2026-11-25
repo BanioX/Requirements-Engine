@@ -29,6 +29,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-reqengine}
       POSTGRES_USER: ${POSTGRES_USER:-reqengine}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in .env setzen (siehe .env.example)}"
+      EMBED_ALLOWED_ORIGINS: ${EMBED_ALLOWED_ORIGINS:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     labels:

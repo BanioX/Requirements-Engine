@@ -71,6 +71,8 @@ function createMockStore({ dbHealthy = true } = {}) {
     async createStory(payload) {
       const s = {
         id: stories.length + 1,
+        origin: payload.origin || 'kunde',
+        channel: payload.channel || 'E-Mail',
         source_role: payload.sourceRole,
         feedback_type: payload.feedbackType,
         urgency: payload.urgency,
@@ -86,11 +88,19 @@ function createMockStore({ dbHealthy = true } = {}) {
         acceptance_criteria_json: payload.acceptanceCriteria,
         status: 'Eingang',
         decision_reason: '',
+        public_response: '',
+        internal_note: '',
         due_date: payload.dueDate,
         trafficLight: { status: 'none', label: 'Kein Termin', daysRemaining: null }
       };
       stories.push(s);
       return s;
+    },
+    async deleteStory(id) {
+      const idx = stories.findIndex((x) => x.id === id);
+      if (idx === -1) return false;
+      stories.splice(idx, 1);
+      return true;
     },
     async decideStory(id, { status, reason, publicResponse, internalNote }) {
       const s = stories.find((x) => x.id === id);
@@ -190,6 +200,10 @@ test('POST /api/stories erzeugt User Story und verlangt bei Entscheid eine Begr�
     assert.equal(decided.status, 'In Arbeit');
     assert.match(decided.public_response, /nächsten Release/);
     assert.match(decided.internal_note, /INTERN:/);
+
+    // Löschen eines Eintrags
+    const delRes = await fetch(`${baseUrl}/api/stories/${created.story.id}`, { method: 'DELETE' });
+    assert.equal(delRes.status, 204);
   });
 });
 
@@ -202,5 +216,41 @@ test('GET /api/deadlines/export.ics liefert gültigen Kalender-Download', async 
     assert.match(res.headers.get('content-type'), /text\/calendar/);
     const text = await res.text();
     assert.match(text, /BEGIN:VCALENDAR/);
+  });
+});
+
+test('Fireproof: Ungültige IDs, defektes JSON und Überlänge liefern sauber HTTP 400 statt 500', async () => {
+  const app = createApp({ store: createMockStore({ dbHealthy: true }) });
+
+  await withServer(app, async (baseUrl) => {
+    const badId = await fetch(`${baseUrl}/api/stories/abc/vote`, { method: 'POST' });
+    assert.equal(badId.status, 400);
+
+    const badJson = await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"rawFeedback": kaputt'
+    });
+    assert.equal(badJson.status, 400);
+
+    const tooLong = await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawFeedback: 'x'.repeat(2100) })
+    });
+    assert.equal(tooLong.status, 400);
+  });
+});
+
+test('Confluence-Erweiterbarkeit: EMBED_ALLOWED_ORIGINS setzt frame-ancestors gezielt im CSP-Header', async () => {
+  const app = createApp({
+    store: createMockStore({ dbHealthy: true }),
+    embedAllowedOrigins: 'https://*.atlassian.net'
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/health`);
+    const csp = res.headers.get('content-security-policy') || '';
+    assert.match(csp, /frame-ancestors 'self' https:\/\/\*\.atlassian\.net/);
   });
 });
