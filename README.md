@@ -1,16 +1,16 @@
 # Requirements Engine
 
-Leichtgewichtiges KMU-Portal für **Klick-Anleitungen (Prozessdokumentation)**, **automatische Aktualitäts-Überwachung** und **Feedback-zu-User-Stories inkl. Entscheid-Log** — für Teams und Betriebe ohne Confluence oder Jira.
+Branchenneutrales, minimalistisches Feedback- und Optimierungs-Portal (gestaltet nach **Dr. Jakob Nielsen** — Heuristik #8 Minimalismus, Progressive Disclosure, komplett ohne Dropdown-Menüs) für Betriebe ohne Jira oder Confluence.
 
 Entwickelt und betrieben im Rahmen der **Anwendungs- und Transferleistung (ATL)** im Modul **M042 Applications Engineering** (HF Wirtschaftsinformatik, HKV Aarau).
 
 ## Zweck & Kernfunktionen
 
-- **Klick-Anleitungen (SOPs):** Schritt-für-Schritt-Prozesse mit Screenshot-Unterstützung (`Ctrl+V`) und nummerierten Klick-Markern, Abhak-Modus und Markdown-/Druck-Export.
-- **Aktualitäts- & Fristen-Wächter:** Jede Anleitung besitzt ein Prüfintervall (z. B. 90 Tage) mit automatischer Risiko-Ampel (*Aktuell / Bald prüfen / Veraltet*) und `.ics`-Kalenderexport.
-- **Feedback → automatische User Stories:** Formloses Feedback aus dem Alltag (z. B. eBanking-/Mobile-Banking-Kundenärger oder interne Prozess-Engpässe) wird lokal und regelbasiert in strukturierte User Stories, geschnittene Tasks, Akzeptanzkriterien und eine MoSCoW-Priorität übersetzt — komplett ohne bezahlte KI-APIs.
-- **Entscheid-Log:** Nachvollziehbare Status-Historie (*Eingang → Bereit → Angenommen / Zurückgestellt / Abgelehnt*) mit Begründung.
-- **Live-Betriebs-Panel & Healthcheck:** Aktiver `/health`-Endpunkt inkl. PostgreSQL-Verbindungsprüfung sowie Anzeige von DB-Status, Datensatz-Zähler und laufender App-Version (Git-Commit-Hash).
+- **Entlastung durch Optimierungen:** Kundschaft und Betrieb sammeln wiederkehrende Fragen, Support-Treiber und Ideen in einem einzigen, klaren Eingabefeld.
+- **Voting nach Nutzen & Machbarkeit:** Team und Nutzende voten den **Nutzen (`▲`)**, der Betrieb bewertet per 1 Klick die **Machbarkeit** (*Einfach / Mittel / Aufwändig*) — **Quick Wins** wandern automatisch ganz nach oben.
+- **Automatische Requirements-Engine (100 % lokal, kostenlos):** Übersetzt formlose Ideen ohne bezahlte KI-APIs in strukturierte User Stories, Umsetzungsschritte (Tasks), Akzeptanzkriterien und warnt bei Duplikaten (erst bei Klick sichtbar — *Progressive Disclosure*).
+- **Entscheid-Log & CSV-/Markdown-Export:** Nachvollziehbare Rückmeldung ans Team (*Geplant / Umgesetzt / Nicht geplant* mit Begründung).
+- **Live-Betriebs-Panel & Healthcheck:** Aktiver `/health`-Endpunkt inkl. PostgreSQL-Prüfung (`SELECT 1`) sowie dezente Statuszeile mit DB-Status, Datensatz-Zähler und laufender Git-Version.
 
 ## Schnellstart (Betrieb / Drittperson mit fertigem GHCR-Image)
 

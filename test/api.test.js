@@ -92,12 +92,14 @@ function createMockStore({ dbHealthy = true } = {}) {
       stories.push(s);
       return s;
     },
-    async decideStory(id, { status, reason }) {
+    async decideStory(id, { status, reason, publicResponse, internalNote }) {
       const s = stories.find((x) => x.id === id);
       if (!s) return null;
       s.status = status;
-      s.decision_reason = reason;
-      decisions.push({ id: decisions.length + 1, entity_type: 'story', entity_id: id, action: status, reason });
+      s.decision_reason = publicResponse || reason;
+      s.public_response = publicResponse || reason;
+      s.internal_note = internalNote || '';
+      decisions.push({ id: decisions.length + 1, entity_type: 'story', entity_id: id, action: status, reason: s.public_response });
       return s;
     },
     async listDecisionLog() {
@@ -173,15 +175,21 @@ test('POST /api/stories erzeugt User Story und verlangt bei Entscheid eine Begr�
     });
     assert.equal(badDec.status, 400);
 
-    // Gültiger Entscheid
+    // Gültiger Entscheid mit getrenntem Kunden-Wording und interner Notiz
     const okDec = await fetch(`${baseUrl}/api/stories/${created.story.id}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'Angenommen', reason: 'Reduziert Support-Anfragen deutlich.' })
+      body: JSON.stringify({
+        status: 'In Arbeit',
+        publicResponse: 'Danke! Wir setzen das im nächsten Release um.',
+        internalNote: 'INTERN: Entlastet Support um 20 Tickets/Woche.'
+      })
     });
     assert.equal(okDec.status, 200);
     const decided = await okDec.json();
-    assert.equal(decided.status, 'Angenommen');
+    assert.equal(decided.status, 'In Arbeit');
+    assert.match(decided.public_response, /nächsten Release/);
+    assert.match(decided.internal_note, /INTERN:/);
   });
 });
 

@@ -296,41 +296,67 @@ export function generateAcceptanceCriteria(rawText, role, reqType) {
   return criteria;
 }
 
+const FEASIBILITY_BONUS = {
+  einfach: 25,
+  mittel: 10,
+  aufwaendig: -5
+};
+
 /**
- * Berechnet MoSCoW-Priorität, Score und T-Shirt-Grösse
+ * Berechnet Impact-Score, Quick-Win-Einstufung (MoSCoW) und T-Shirt-Grösse
+ * aus Nutzen (Upvotes) und Machbarkeit (einfach / mittel / aufwaendig).
  */
-export function scoreAndPrioritize({ rawText, urgency = 'normal', feedbackType = 'idee', votes = 1, tasks = [] }) {
-  const lower = rawText.toLowerCase();
-  let score = (URGENCY_BASE_SCORE[urgency] || 15) + (TYPE_BONUS[feedbackType] || 10);
+export function scoreAndPrioritize({
+  rawText,
+  urgency = 'normal',
+  feedbackType = 'idee',
+  votes = 1,
+  feasibility = 'mittel',
+  tasks = []
+}) {
+  const lower = String(rawText || '').toLowerCase();
+  const safeVotes = Math.max(1, Number(votes) || 1);
+  const safeFeasibility = Object.hasOwn(FEASIBILITY_BONUS, feasibility) ? feasibility : 'mittel';
 
-  // Zusätzliche Business-Impact-Indikatoren
-  if (/(ausfall|sperr|kunde|hotline|beschwer|frist|mahnung|sicherheit|compliance|gesetz)/.test(lower)) {
-    score += 15;
-  }
-  if (/(jeden tag|täglich|jede woche|dauernd|ständig|stunde)/.test(lower)) {
-    score += 10;
-  }
+  let score =
+    safeVotes * 6 +
+    FEASIBILITY_BONUS[safeFeasibility] +
+    (URGENCY_BASE_SCORE[urgency] || 10) * 0.7 +
+    (TYPE_BONUS[feedbackType] || 8) * 0.4;
 
-  // Team-Votes fliessen direkt ein (max +30)
-  score += Math.min(Math.max(Number(votes) - 1, 0) * 5, 30);
-  score = Math.min(score, 100);
+  if (/(ausfall|sperr|kunde|hotline|support|ticket|beschwer|frist|self-service|beleg|auszug)/.test(lower)) {
+    score += 12;
+  }
+  if (urgency === 'kritisch') {
+    score = Math.max(score, 80);
+  }
+  score = Math.max(5, Math.min(Math.round(score), 100));
 
   let moscow = 'Could';
-  if (score >= 65 || urgency === 'kritisch') {
+  if (urgency === 'kritisch' || (safeFeasibility === 'einfach' && safeVotes >= 4) || safeVotes >= 8 || score >= 75) {
     moscow = 'Must';
-  } else if (score >= 40 || urgency === 'hoch') {
+  } else if (safeVotes >= 3 || score >= 45) {
     moscow = 'Should';
+  }
+
+  let impactLabel = 'Idee';
+  if (safeFeasibility === 'einfach' && safeVotes >= 4) {
+    impactLabel = 'Quick Win';
+  } else if (safeVotes >= 8 && safeFeasibility === 'aufwaendig') {
+    impactLabel = 'Grossprojekt';
+  } else if (moscow === 'Must' || moscow === 'Should') {
+    impactLabel = 'Hoher Nutzen';
   }
 
   const totalHours = tasks.reduce((sum, t) => sum + (Number(t.estimateHours) || 1), 0);
   let sizeEstimate = 'S';
-  if (totalHours > 9 || tasks.length >= 5) {
+  if (safeFeasibility === 'aufwaendig' || totalHours > 9) {
     sizeEstimate = 'L';
-  } else if (totalHours > 5 || tasks.length >= 4) {
+  } else if (safeFeasibility === 'mittel' || totalHours > 5) {
     sizeEstimate = 'M';
   }
 
-  return { score, moscow, sizeEstimate, totalHours };
+  return { score, moscow, impactLabel, sizeEstimate, totalHours, feasibility: safeFeasibility };
 }
 
 /**
@@ -382,13 +408,63 @@ export function findPotentialDuplicates(rawText, existingStories = []) {
 }
 
 /**
+ * Erkennt Rolle / Bereich automatisch aus dem Freitext (damit kein Dropdown nötig ist)
+ */
+export function detectSourceRole(rawText, origin = 'kunde') {
+  const lower = String(rawText || '').toLowerCase();
+  if (origin === 'betrieb') {
+    if (/(support|hotline|ticket|anruf|rückfrage)/.test(lower)) return 'Support & Betrieb';
+    if (/(rechnung|mahnung|buchhaltung|beleg|auszug)/.test(lower)) return 'Administration & Finanzen';
+    if (/(server|zertifikat|backup|docker|passwort|datenbank|api|deploy)/.test(lower)) return 'IT-Betrieb';
+    return 'Betrieb & Team';
+  }
+  if (/(support|hotline|ticket|wartezeit)/.test(lower)) return 'Nutzende & Support';
+  if (/(beleg|auszug|rechnung|pdf|download|dokument)/.test(lower)) return 'Nutzende (Self-Service)';
+  if (/(login|passwort|pin|zugang|app|mobile)/.test(lower)) return 'App-Nutzende';
+  return 'Kundschaft / Nutzende';
+}
+
+/**
+ * Erkennt Feedback-Kategorie automatisch aus dem Freitext
+ */
+export function detectFeedbackType(rawText) {
+  const lower = String(rawText || '').toLowerCase();
+  if (/(kunde|kundschaft|beschwer|ärger|hotline|frust|absturz|bricht ab|unzufrieden)/.test(lower)) {
+    return 'kunden_aerger';
+  }
+  if (/(zertifikat|compliance|dsg|gesetz|audit|sicherheit|sperr|pin|2fa|frist)/.test(lower)) {
+    return 'compliance';
+  }
+  if (/(manuell|excel|klick|maske|dauer|stunde|warten|prozess|ablauf|nervt|doppelt)/.test(lower)) {
+    return 'prozess_engpass';
+  }
+  return 'idee';
+}
+
+/**
+ * Erkennt Dringlichkeit automatisch aus Signalwörtern im Freitext
+ */
+export function detectUrgency(rawText) {
+  const lower = String(rawText || '').toLowerCase();
+  if (/(ausfall|sperr|absturz|sofort|kritisch|blockiert|bricht ab|beschweren sich dauernd|sicherheitslücke)/.test(lower)) {
+    return 'kritisch';
+  }
+  if (/(nervt|dauernd|ständig|jeden tag|jede woche|hotline|mahnung|frist|warten|stunde|fehler|kompliziert)/.test(lower)) {
+    return 'hoch';
+  }
+  return 'normal';
+}
+
+/**
  * Hauptfunktion: Übersetzt rohes Feedback komplett in ein Requirements-Paket
  */
 export function analyzeFeedback({
   rawFeedback,
-  sourceRole = 'Fachbereich',
-  feedbackType = 'idee',
-  urgency = 'normal',
+  sourceRole,
+  origin = 'kunde',
+  feasibility = 'mittel',
+  feedbackType,
+  urgency,
   votes = 1,
   existingStories = []
 }) {
@@ -397,30 +473,47 @@ export function analyzeFeedback({
     throw new Error('Bitte beschreibe das Feedback mit mindestens 10 Zeichen.');
   }
 
-  const role = cleanWhitespace(sourceRole) || 'Fachbereich';
-  const reqType = classifyRequirementType(cleaned, feedbackType);
+  const safeOrigin = origin === 'betrieb' ? 'betrieb' : 'kunde';
+  const role = cleanWhitespace(sourceRole) && sourceRole !== 'Auto'
+    ? cleanWhitespace(sourceRole)
+    : detectSourceRole(cleaned, safeOrigin);
+  const resolvedType = feedbackType && feedbackType !== 'auto'
+    ? feedbackType
+    : detectFeedbackType(cleaned);
+  const resolvedUrgency = urgency && urgency !== 'auto'
+    ? urgency
+    : detectUrgency(cleaned);
+
+  const reqType = classifyRequirementType(cleaned, resolvedType);
   const { mainPart, benefitPart } = splitGoalAndBenefit(cleaned);
-  const goalPhrase = normalizeGoalPhrase(mainPart, feedbackType);
-  const benefitPhrase = normalizeBenefitPhrase(benefitPart, feedbackType, reqType);
+  const goalPhrase = normalizeGoalPhrase(mainPart, resolvedType);
+  const benefitPhrase = normalizeBenefitPhrase(benefitPart, resolvedType, reqType);
 
   const title = buildShortTitle(mainPart, role);
   const userStory = `Als ${role} möchte ich ${goalPhrase}, damit ${benefitPhrase}.`;
   const tasks = sliceIntoTasks(cleaned, reqType);
   const acceptanceCriteria = generateAcceptanceCriteria(cleaned, role, reqType);
-  const { score, moscow, sizeEstimate, totalHours } = scoreAndPrioritize({
+  const { score, moscow, impactLabel, sizeEstimate, totalHours, feasibility: safeFeasibility } = scoreAndPrioritize({
     rawText: cleaned,
-    urgency,
-    feedbackType,
+    urgency: resolvedUrgency,
+    feedbackType: resolvedType,
     votes,
+    feasibility,
     tasks
   });
   const duplicates = findPotentialDuplicates(cleaned, existingStories);
 
   return {
+    origin: safeOrigin,
+    feasibility: safeFeasibility,
+    sourceRole: role,
+    feedbackType: resolvedType,
+    urgency: resolvedUrgency,
     title,
     userStory,
     reqType,
     moscow,
+    impactLabel,
     sizeEstimate,
     totalEstimatedHours: totalHours,
     priorityScore: score,

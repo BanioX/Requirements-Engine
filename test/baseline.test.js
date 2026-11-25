@@ -29,3 +29,10 @@ test('.gitignore sperrt .env zuverlässig', () => {
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
   assert.match(gitignore, /^\.env$/m);
 });
+
+test('Minimalistisches UI (Jakob Nielsen) verzichtet komplett auf Dropdown-Menüs (<select>)', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'src', 'public', 'app.js'), 'utf8');
+  assert.doesNotMatch(html, /<select\b/i);
+  assert.doesNotMatch(js, /<select\b/i);
+});

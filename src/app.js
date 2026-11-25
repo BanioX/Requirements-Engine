@@ -11,8 +11,10 @@ import {
 
 const ALLOWED_DECISION_STATUSES = new Set([
   'Eingang',
+  'Geprüft',
   'Bereit',
   'Angenommen',
+  'In Arbeit',
   'Zurückgestellt',
   'Abgelehnt',
   'Umgesetzt'
@@ -126,13 +128,14 @@ export function createApp({ store, buildInfo = {} }) {
     }
   });
 
-  // Stories auflisten
+  // Stories auflisten (Standard: nach Upvotes sortiert)
   app.get('/api/stories', async (req, res, next) => {
     try {
       const stories = await store.listStories({
         status: req.query.status,
         moscow: req.query.moscow,
-        q: req.query.q
+        q: req.query.q,
+        sort: req.query.sort
       });
       res.json(stories);
     } catch (err) {
@@ -156,11 +159,13 @@ export function createApp({ store, buildInfo = {} }) {
   // Feedback einreichen -> automatisch übersetzen & speichern
   app.post('/api/stories', async (req, res, next) => {
     try {
-      const { rawFeedback, sourceRole, feedbackType, urgency, processId, dueDate } = req.body || {};
+      const { rawFeedback, sourceRole, origin, feasibility, feedbackType, urgency, processId, dueDate } = req.body || {};
       const existing = await store.listStories();
       const analyzed = analyzeFeedback({
         rawFeedback,
         sourceRole,
+        origin,
+        feasibility,
         feedbackType,
         urgency,
         existingStories: existing
@@ -168,9 +173,6 @@ export function createApp({ store, buildInfo = {} }) {
 
       const created = await store.createStory({
         processId: processId ? Number(processId) : null,
-        sourceRole: (sourceRole || 'Fachbereich').trim(),
-        feedbackType: feedbackType || 'idee',
-        urgency: urgency || 'normal',
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -185,7 +187,7 @@ export function createApp({ store, buildInfo = {} }) {
     }
   });
 
-  // Upvote (+1) mit automatischer Score-Neuberechnung
+  // Upvote (+1 Nutzen) mit automatischer Impact- & Quick-Win-Neuberechnung
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
       const id = Number(req.params.id);
@@ -196,11 +198,39 @@ export function createApp({ store, buildInfo = {} }) {
         rawText: current.raw_feedback,
         urgency: current.urgency,
         feedbackType: current.feedback_type,
+        feasibility: current.feasibility || 'mittel',
         votes: Number(current.votes) + 1,
         tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
       });
 
       const updated = await store.upvoteStory(id, recalculated);
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Machbarkeit bewerten (einfach / mittel / aufwaendig -> Quick-Win-Score aktualisiert sich live!)
+  app.patch('/api/stories/:id/feasibility', async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const { feasibility } = req.body || {};
+      if (!['einfach', 'mittel', 'aufwaendig'].includes(feasibility)) {
+        return res.status(400).json({ error: 'Machbarkeit muss einfach, mittel oder aufwaendig sein.' });
+      }
+      const current = await store.getStoryById(id);
+      if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
+
+      const recalculated = scoreAndPrioritize({
+        rawText: current.raw_feedback,
+        urgency: current.urgency,
+        feedbackType: current.feedback_type,
+        feasibility,
+        votes: Number(current.votes),
+        tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
+      });
+
+      const updated = await store.updateStoryFeasibility(id, feasibility, recalculated);
       res.json(updated);
     } catch (err) {
       next(err);
@@ -218,19 +248,22 @@ export function createApp({ store, buildInfo = {} }) {
     }
   });
 
-  // Entscheid fällen (mit verpflichtender Begründung -> Entscheid-Log)
+  // Entscheid fällen: getrenntes Kunden-Wording (öffentlich) & interne Begründung (vertraulich)
   app.post('/api/stories/:id/decision', async (req, res, next) => {
     try {
-      const { status, reason, dueDate, actorRole } = req.body || {};
+      const { status, reason, publicResponse, internalNote, dueDate, actorRole } = req.body || {};
       if (!ALLOWED_DECISION_STATUSES.has(status)) {
         return res.status(400).json({ error: 'Ungültiger Entscheid-Status.' });
       }
-      if (!reason || String(reason).trim().length < 5) {
-        return res.status(400).json({ error: 'Bitte eine kurze Begründung (mind. 5 Zeichen) angeben.' });
+      const customerText = String(publicResponse || reason || '').trim();
+      if (customerText.length < 5) {
+        return res.status(400).json({ error: 'Bitte eine kurze Begründung / Antwort an Nutzende (mind. 5 Zeichen) angeben.' });
       }
       const updated = await store.decideStory(Number(req.params.id), {
         status,
-        reason: String(reason).trim(),
+        reason: customerText,
+        publicResponse: customerText,
+        internalNote: internalNote !== undefined ? String(internalNote).trim() : undefined,
         dueDate: dueDate || null,
         actorRole: actorRole ? String(actorRole).trim() : 'Betriebsverantwortung'
       });

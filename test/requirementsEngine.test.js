@@ -69,3 +69,33 @@ test('Team-Votes erhöhen den Prioritäts-Score automatisch', () => {
 
   assert.ok(voted.score > base.score);
 });
+
+test('erkennt Rolle, Kategorie und Dringlichkeit automatisch ohne Dropdown-Auswahl', () => {
+  const result = analyzeFeedback({
+    rawFeedback: 'Nach 3 falschen Login-Versuchen bricht der Zugang sofort ab und Kunden beschweren sich dauernd bei der Hotline.',
+    origin: 'betrieb'
+  });
+
+  assert.equal(result.origin, 'betrieb');
+  assert.equal(result.sourceRole, 'Support & Betrieb');
+  assert.equal(result.feedbackType, 'kunden_aerger');
+  assert.equal(result.urgency, 'kritisch');
+  assert.equal(result.moscow, 'Must');
+});
+
+test('Machbarkeit «einfach» + Nutzen-Votes stufen Idee automatisch als Quick Win ein', () => {
+  const quickWin = scoreAndPrioritize({
+    rawText: 'Eigenen Auszug direkt als PDF herunterladen',
+    votes: 5,
+    feasibility: 'einfach'
+  });
+  const complex = scoreAndPrioritize({
+    rawText: 'Eigenen Auszug direkt als PDF herunterladen',
+    votes: 5,
+    feasibility: 'aufwaendig'
+  });
+
+  assert.equal(quickWin.impactLabel, 'Quick Win');
+  assert.equal(quickWin.moscow, 'Must');
+  assert.ok(quickWin.score > complex.score);
+});

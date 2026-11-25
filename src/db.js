@@ -108,6 +108,11 @@ export async function initDatabase(pool) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'kunde';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS feasibility TEXT NOT NULL DEFAULT 'mittel';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS public_response TEXT NOT NULL DEFAULT '';
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS internal_note TEXT NOT NULL DEFAULT '';
+
     CREATE TABLE IF NOT EXISTS decision_log (
       id SERIAL PRIMARY KEY,
       entity_type TEXT NOT NULL,
@@ -213,78 +218,119 @@ async function seedInitialDemoData(pool) {
       [p3Id]
     );
 
-    // Demo-Stories (anonymisierte eBanking- & KMU-Beispiele)
+    // Branchenneutrale Demo-Ideen mit geschlossenem Feedback-Loop (Kunden-Wording vs. interne Notiz)
     const s1 = await client.query(
       `INSERT INTO feedback_stories
-       (process_id, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17) RETURNING id`,
+       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
       [
-        p1Id,
-        'Mobile-Banking-Kundschaft',
+        null,
+        'kunde',
+        'einfach',
+        'Nutzende (Self-Service)',
         'kunden_aerger',
-        'kritisch',
-        'Kunden im Mobile Banking beschweren sich dauernd, dass nach 3 falschen PIN-Eingaben nur ein kryptischer Fehlercode erscheint und sie 15 Minuten in der Hotline warten müssen, weil kein geführter Self-Service-Hinweis angezeigt wird.',
-        'Klare Fehlermeldung & geführter Hinweis bei Mobile-Banking PIN-Sperre',
-        'Als Mobile-Banking-Kundschaft möchte ich eine klare und geführte Lösung für das Problem «nach 3 falschen PIN-Eingaben erscheint nur ein kryptischer Fehlercode» bereitstellen, damit Risiken und Reibung vermieden werden (Auslöser: kein geführter Self-Service-Hinweis vorhanden).',
-        'NFA: Sicherheit & Compliance',
+        'hoch',
+        'Nutzende können aktuell keinen eigenen Auszug oder Beleg für einen freien Zeitraum als PDF erstellen und müssen dafür jedes Mal den Support kontaktieren.',
+        'Eigenen Auszug / Beleg direkt als PDF im Self-Service erstellen',
+        'Als Nutzende (Self-Service) möchte ich Auszüge und Belege für beliebige Zeiträume selbst als PDF herunterladen, damit weniger Support-Tickets entstehen und ich sofort mein Dokument habe.',
+        'FA: Funktionale Anforderung',
         'Must',
-        'M',
-        95,
-        7,
+        'S',
+        94,
+        11,
         JSON.stringify([
-          { id: 'T1', title: 'Fehlermeldungstexte im Mobile Banking verständlich formulieren (DE/FR/IT)', estimateHours: 2, done: true },
-          { id: 'T2', title: 'Sicherheits- und Missbrauchsprüfung für Self-Service-Hinweis durchführen', estimateHours: 3, done: false },
-          { id: 'T3', title: 'Abnahmetest durchführen & Support-Klick-Anleitung aktualisieren', estimateHours: 1.5, done: false }
+          { id: 'T1', title: 'Zeitraum-Auswahl und PDF-Export im Benutzerbereich ergänzen', estimateHours: 2.5, done: true },
+          { id: 'T2', title: 'Stichprobe für korrekte Daten & UTF-8-Darstellung prüfen', estimateHours: 1.5, done: false },
+          { id: 'T3', title: 'Abnahmetest durchführen und kurz im Changelog ankündigen', estimateHours: 1, done: false }
         ]),
         JSON.stringify([
-          'Gegeben 3 fehlgeschlagene PIN-Eingaben im Mobile Banking, wenn die Sperre greift, dann erscheint innert < 2 Sekunden eine verständliche Meldung mit klarem Entsperr-Weg.',
-          'Gegeben ein Sicherheits-Review, wenn die neue Meldung live geht, dann werden keine sensiblen Kontodetails preisgegeben.'
+          'Gegeben ein angemeldeter Account, wenn ein Zeitraum gewählt und Export ausgelöst wird, dann steht das PDF innert < 3 Sekunden zum Download bereit.',
+          'Gegeben ungültige Datumsbereiche, wenn der Export gestartet wird, dann erscheint ein klarer Hinweis ohne Absturz.'
         ]),
-        'Angenommen',
-        'Hohes Anrufvolumen im eBanking-Support (über 40 Tickets/Woche). Für nächsten Release priorisiert.',
-        addDays(now, 10)
+        'In Arbeit',
+        'Klarer Quick Win: rund 35 wiederkehrende Support-Anfragen pro Woche fallen direkt weg.',
+        'Vielen Dank für das starke Feedback! Wir arbeiten bereits daran — der selbstständige PDF-Export erscheint im nächsten Release.',
+        'INTERN: Hohe Entlastung im 1st-Level-Support (~35 Tickets/Woche). PDF-Generator ist bereits lizenziert, Aufwand ca. 5h.',
+        addDays(now, 12)
       ]
     );
 
     const s2 = await client.query(
       `INSERT INTO feedback_stories
-       (process_id, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17) RETURNING id`,
+       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
       [
         null,
-        'eBanking-Support',
-        'prozess_engpass',
-        'hoch',
-        'Beim Erhöhen von TWINT-Tageslimiten müssen wir aktuell zwischen 3 Masken wechseln sowie die Änderung zusätzlich manuell im Ticket protokollieren, weil kein 1-Klick-Audit-Export existiert.',
-        'TWINT-Limit-Anpassung mit automatischem Audit-Eintrag vereinfachen',
-        'Als eBanking-Support möchte ich den Ablauf «beim Erhöhen von TWINT-Tageslimiten zwischen 3 Masken wechseln» vereinfachen und automatisieren, damit Risiken und Reibung vermieden werden (Auslöser: kein 1-Klick-Audit-Export existiert).',
-        'FA: Funktionale Anforderung',
-        'Should',
-        'M',
-        68,
+        'betrieb',
+        'einfach',
+        'Support & Betrieb',
+        'kunden_aerger',
+        'kritisch',
+        'Bei 3 falschen Login-Versuchen erscheint nur eine unklare Fehlermeldung statt eines direkten Hinweises zur Entsperrung — deshalb rufen täglich dutzende Personen bei der Hotline an.',
+        'Verständliche Fehlermeldung mit direktem Lösungsschritt bei Login-Sperre',
+        'Als Support & Betrieb möchte ich bei gesperrtem Login eine klare Meldung mit direktem nächstem Schritt anzeigen, damit Rückfragen an die Hotline deutlich sinken.',
+        'NFA: Usability & Kundenerlebnis',
+        'Must',
+        'S',
+        86,
+        8,
+        JSON.stringify([
+          { id: 'T1', title: 'Fehlermeldung in einfacher, klarer Sprache formulieren', estimateHours: 1, done: true },
+          { id: 'T2', title: 'Direkten Link zur geführten Passwort-/PIN-Hilfe einbauen', estimateHours: 2, done: true },
+          { id: 'T3', title: 'Sicherheitsprüfung (keine Preisgabe sensibler Kontodaten) durchführen', estimateHours: 1.5, done: true }
+        ]),
+        JSON.stringify([
+          'Gegeben eine fehlgeschlagene Anmeldung, wenn die Sperre greift, dann erklärt das System klar den nächsten Schritt.',
+          'Gegeben ein Sicherheitstest, wenn fremde Zugangsdaten probiert werden, dann werden keine Kontodetails offengelegt.'
+        ]),
+        'Umgesetzt',
+        'Umgesetzt und live — Support-Rückfragen bereits um 40 % gesunken.',
+        'Gute Nachricht: Die neue, verständliche Hilfemeldung bei Login-Sperren ist ab sofort aktiv!',
+        'INTERN: Sicherheits-Review bestanden (kein User-Enumeration-Risiko). Hotline-Entlastung messbar ab Woche 1.',
+        null
+      ]
+    );
+
+    const s3 = await client.query(
+      `INSERT INTO feedback_stories
+       (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, decision_reason, public_response, internal_note, due_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id`,
+      [
+        null,
+        'kunde',
+        'aufwaendig',
+        'Nutzende & Support',
+        'idee',
+        'normal',
+        'Nutzende wünschen sich eine dauerhafte Anmeldung ohne erneute Sicherheitsprüfung auf demselben Gerät, damit der Zugriff schneller geht.',
+        'Dauerhafte Anmeldung ohne 2-Faktor-Prüfung auf bekanntem Gerät',
+        'Als Nutzende möchte ich angemeldet bleiben ohne erneute Prüfung, damit ich schneller auf meine Daten zugreife.',
+        'NFA: Sicherheit & Compliance',
+        'Could',
+        'L',
+        26,
         4,
         JSON.stringify([
-          { id: 'T1', title: 'Masken-Ablauf mit Support-Team konsolidieren', estimateHours: 2, done: false },
-          { id: 'T2', title: 'Export-Funktion & automatische Protokollierung implementieren', estimateHours: 2.5, done: false },
-          { id: 'T3', title: 'Abnahmetest durchführen & Klick-Anleitung ergänzen', estimateHours: 1.5, done: false }
+          { id: 'T1', title: 'Regulatorische Vorgaben & Sicherheitsrisiko prüfen', estimateHours: 2, done: true }
         ]),
         JSON.stringify([
-          'Gegeben eine berechtigte Person im eBanking-Support, wenn eine TWINT-Limit-Änderung gespeichert wird, dann wird der Audit-Eintrag automatisch erstellt.',
-          'Gegeben ein Export-Wunsch, wenn CSV/Markdown erzeugt wird, dann sind Zeitstempel und Begründung vollständig enthalten.'
+          'Gegeben Sicherheitsrichtlinien, wenn eine Sitzung abläuft, dann bleibt eine starke Authentifizierung zwingend.'
         ]),
-        'Bereit',
-        'Fachlich vorgeprüft — bereit für den nächsten Sprint-Entscheid.',
-        addDays(now, 21)
+        'Abgelehnt',
+        'Aus Sicherheits- und Compliance-Gründen nicht umsetzbar.',
+        'Danke für den Vorschlag! Zum Schutz deiner Daten können wir die Sicherheitsprüfung leider nicht dauerhaft abschalten. Wir prüfen stattdessen eine schnellere Anmeldung per Biometrie.',
+        'INTERN (vertraulich): Audit-Auflage & revDSG untersagen unbefristete Sessions ohne Re-Auth. Alternative Biometrie-Login für Q3 vorgemerkt.',
+        null
       ]
     );
 
     await client.query(
       `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
        VALUES
-       ('story', $1, 'Klare Fehlermeldung & geführter Hinweis bei Mobile-Banking PIN-Sperre', 'Angenommen', 'Hohes Anrufvolumen im eBanking-Support (über 40 Tickets/Woche). Für nächsten Release priorisiert.', 'Product Owner / Betrieb'),
-       ('story', $2, 'TWINT-Limit-Anpassung mit automatischem Audit-Eintrag vereinfachen', 'Bereit', 'Aufwand geschätzt und Akzeptanzkriterien geschärft; Entscheid im kommenden Steuerungsausschuss.', 'Requirements Engineering'),
-       ('process', $3, 'Mobile-Banking Login-Sperre prüfen & sicher entsperren', 'Review geplant', 'Klick-Anleitung v2 mit Screenshot-Markern hinterlegt; nächstes Review in 8 Tagen fällig.', 'eBanking-Support')`,
-      [s1.rows[0].id, s2.rows[0].id, p1Id]
+       ('story', $1, 'Eigenen Auszug / Beleg direkt als PDF im Self-Service erstellen', 'In Arbeit', 'Quick Win mit grosser Entlastung im Support.', 'Betrieb & Produkt'),
+       ('story', $2, 'Verständliche Fehlermeldung mit direktem Lösungsschritt bei Login-Sperre', 'Umgesetzt', 'Live geschaltet; Hotline-Rückfragen deutlich reduziert.', 'Support & Betrieb'),
+       ('story', $3, 'Dauerhafte Anmeldung ohne 2-Faktor-Prüfung auf bekanntem Gerät', 'Abgelehnt', 'Wegen Sicherheits- und Audit-Vorgaben abgelehnt; freundliches Kunden-Wording veröffentlicht.', 'Sicherheit & Betrieb')`,
+      [s1.rows[0].id, s2.rows[0].id, s3.rows[0].id]
     );
 
     await client.query(`INSERT INTO app_meta (key, value) VALUES ('seeded', 'true')`);
@@ -450,7 +496,7 @@ export function createPostgresStore(pool) {
       };
     },
 
-    async listStories({ status, moscow, q } = {}) {
+    async listStories({ status, moscow, q, sort } = {}) {
       const clauses = [];
       const params = [];
 
@@ -468,12 +514,19 @@ export function createPostgresStore(pool) {
       }
 
       const whereSql = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+      const orderSql =
+        sort === 'newest'
+          ? 'ORDER BY f.created_at DESC, f.id DESC'
+          : sort === 'quickwins'
+            ? "ORDER BY (CASE WHEN f.feasibility = 'einfach' THEN 0 WHEN f.feasibility = 'mittel' THEN 1 ELSE 2 END) ASC, f.votes DESC, f.priority_score DESC"
+            : 'ORDER BY f.priority_score DESC, f.votes DESC, f.created_at DESC';
+
       const res = await pool.query(
         `SELECT f.*, p.title AS process_title
          FROM feedback_stories f
          LEFT JOIN processes p ON p.id = f.process_id
          ${whereSql}
-         ORDER BY f.priority_score DESC, f.created_at DESC`,
+         ${orderSql}`,
         params
       );
       return res.rows.map((row) => ({
@@ -500,11 +553,13 @@ export function createPostgresStore(pool) {
     async createStory(payload) {
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,$12::jsonb,$13::jsonb,'Eingang',$14)
+         (process_id, origin, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14::jsonb,$15::jsonb,'Eingang',$16)
          RETURNING *`,
         [
           payload.processId || null,
+          payload.origin || 'kunde',
+          payload.feasibility || 'mittel',
           payload.sourceRole,
           payload.feedbackType,
           payload.urgency,
@@ -527,7 +582,7 @@ export function createPostgresStore(pool) {
         [
           created.id,
           created.title,
-          `Feedback automatisch in User Story (${created.moscow}, Grösse ${created.size_estimate}, ${payload.tasks.length} Tasks) übersetzt.`,
+          `Feedback (${created.origin === 'betrieb' ? 'Betrieb' : 'Kundschaft'}) automatisch in User Story (${created.moscow}, Machbarkeit: ${created.feasibility}) übersetzt.`,
           created.source_role
         ]
       );
@@ -540,9 +595,23 @@ export function createPostgresStore(pool) {
     async upvoteStory(id, recalculated) {
       const res = await pool.query(
         `UPDATE feedback_stories
-         SET votes = votes + 1, priority_score = $1, moscow = $2, updated_at = NOW()
-         WHERE id = $3 RETURNING *`,
-        [recalculated.score, recalculated.moscow, id]
+         SET votes = votes + 1, priority_score = $1, moscow = $2, size_estimate = $3, updated_at = NOW()
+         WHERE id = $4 RETURNING *`,
+        [recalculated.score, recalculated.moscow, recalculated.sizeEstimate, id]
+      );
+      if (res.rowCount === 0) return null;
+      return {
+        ...res.rows[0],
+        trafficLight: calculateTrafficLight(res.rows[0].due_date)
+      };
+    },
+
+    async updateStoryFeasibility(id, feasibility, recalculated) {
+      const res = await pool.query(
+        `UPDATE feedback_stories
+         SET feasibility = $1, priority_score = $2, moscow = $3, size_estimate = $4, updated_at = NOW()
+         WHERE id = $5 RETURNING *`,
+        [feasibility, recalculated.score, recalculated.moscow, recalculated.sizeEstimate, id]
       );
       if (res.rowCount === 0) return null;
       return {
@@ -575,20 +644,27 @@ export function createPostgresStore(pool) {
       };
     },
 
-    async decideStory(storyId, { status, reason, dueDate, actorRole }) {
+    async decideStory(storyId, { status, reason, publicResponse, internalNote, dueDate, actorRole }) {
       const existing = await pool.query(`SELECT * FROM feedback_stories WHERE id = $1`, [storyId]);
       if (existing.rowCount === 0) return null;
+      const finalPublic = publicResponse || reason || '';
+      const finalInternal = internalNote ?? existing.rows[0].internal_note ?? '';
       const res = await pool.query(
         `UPDATE feedback_stories
-         SET status = $1, decision_reason = $2, due_date = COALESCE($3, due_date), updated_at = NOW()
-         WHERE id = $4 RETURNING *`,
-        [status, reason, dueDate || null, storyId]
+         SET status = $1,
+             decision_reason = $2,
+             public_response = $3,
+             internal_note = $4,
+             due_date = COALESCE($5, due_date),
+             updated_at = NOW()
+         WHERE id = $6 RETURNING *`,
+        [status, finalPublic, finalPublic, finalInternal, dueDate || null, storyId]
       );
       const updated = res.rows[0];
       await pool.query(
         `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
          VALUES ('story', $1, $2, $3, $4, $5)`,
-        [updated.id, updated.title, status, reason, actorRole || 'Betriebsverantwortung']
+        [updated.id, updated.title, status, finalPublic, actorRole || 'Betriebsverantwortung']
       );
       return {
         ...updated,
