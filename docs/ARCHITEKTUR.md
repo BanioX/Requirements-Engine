@@ -48,13 +48,13 @@ flowchart LR
 ## 2. Kurzbeschreibung (Entwurf für ½ bis max. 1 A4-Seite im Bericht)
 
 ### Zielbild
-Mit **Requirements Engine** wird eine branchenneutrale Webapplikation für KMU (mit praxisnahen Beispielprozessen, u. a. aus dem eBanking-/Mobile-Banking-Alltag) vollständig reproduzierbar und automatisiert betrieben. Die Applikation läuft lokal auf dem Entwickler-Laptop in isolierten Docker-Containern und wird ohne Port-Weiterleitung im Heim- oder Schulnetz sicher über HTTPS veröffentlicht.
+Mit **Requirements Engine** wird eine branchenneutrale, minimalistische Webapplikation (gestaltet nach den Usability-Prinzipien von Dr. Jakob Nielsen — ohne Dropdown-Menüs, mit Progressive Disclosure) vollständig reproduzierbar und automatisiert betrieben. Kundschaft und Betrieb erfassen wiederkehrende Fragen und Optimierungsideen, bewerten sie nach **Nutzen (Upvotes)** und **Machbarkeit** (*Quick Wins*) und verfolgen transparent den geschlossenen **Feedback-Loop** (*Eingereicht → Geprüft → In Arbeit → Erledigt / Abgelehnt*) mit getrenntem Kunden-Wording und vertraulicher interner Begründung. Die Applikation läuft lokal auf dem Entwickler-Laptop in isolierten Docker-Containern und wird ohne Port-Weiterleitung sicher über HTTPS veröffentlicht.
 
 ### Komponenten auf dem Laptop
 Die gesamte Laufzeitumgebung wird deklarativ über `docker-compose.yml` gesteuert:
-- **App-Container (`app`):** Führt die Node.js-Webapplikation aus, stellt das Web-UI, die lokale Requirements-Engine sowie den aktiven `/health`-Endpunkt bereit.
+- **App-Container (`app`):** Führt die Node.js-24-Webapplikation aus (als Non-Root-Benutzer `node`), stellt das minimalistische Feedback-Loop-UI, die lokale Requirements-Engine (User-Story- & Task-Generierung ohne bezahlte KI-APIs) sowie den aktiven `/health`-Endpunkt bereit.
 - **Datenbank-Container (`db`):** Betreibt PostgreSQL 17 getrennt von der Applikationslogik in einem internen Docker-Netzwerk.
-- **Persistentes Volume (`pg_data`):** Speichert alle Datenbankinhalte ausserhalb des Container-Dateisystems, sodass Prozesse, Klick-Schritte, User Stories und Entscheide einen Container-Neustart unbeschadet überstehen.
+- **Persistentes Volume (`pg_data`):** Speichert alle Datenbankinhalte ausserhalb des Container-Dateisystems, sodass Feedback, Stimmen, Machbarkeitsbewertungen, User Stories und Entscheide einen Container-Neustart unbeschadet überstehen.
 - **Cloudflare Tunnel (`tunnel`):** Baut eine verschlüsselte ausgehende Verbindung zur Cloudflare-Edge auf. Eingehende Firewall-Freigaben auf dem Laptop sind nicht erforderlich.
 - **Auto-Updater (`watchtower`):** Überwacht das App-Image in der GitHub Container Registry und aktualisiert den laufenden App-Container automatisch.
 - **Lokale `.env`-Datei:** Liefert Zugangsdaten zur Laufzeit, ist per `.gitignore` ausgeschlossen und gelangt nie ins Git-Repository.
