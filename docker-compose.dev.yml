@@ -1,0 +1,12 @@
+# Entwicklungs-Override für lokalen Image-Build vor dem Push auf GHCR:
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: dev-local
+        GIT_SHA: local-build
+    image: requirements-engine:dev-local
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"

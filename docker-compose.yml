@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reqengine}
+      POSTGRES_USER: ${POSTGRES_USER:-reqengine}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in .env setzen (siehe .env.example)}"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reqengine} -d ${POSTGRES_DB:-reqengine}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    image: ghcr.io/baniox/requirements-engine:${APP_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-reqengine}
+      POSTGRES_USER: ${POSTGRES_USER:-reqengine}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in .env setzen (siehe .env.example)}"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=requirements-engine"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    command: tunnel --no-autoupdate --url http://app:3000
+
+  watchtower:
+    image: nickfedor/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_SCOPE: requirements-engine
+      WATCHTOWER_POLL_INTERVAL: "30"
+      WATCHTOWER_CLEANUP: "true"
+    labels:
+      - "com.centurylinklabs.watchtower.scope=requirements-engine"
+
+volumes:
+  pg_data:

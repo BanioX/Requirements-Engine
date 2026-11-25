@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Requirements Engine — Feedback zu User Stories &amp; Klick-Anleitungen</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">RE</div>
+        <div>
+          <h1>Requirements Engine</h1>
+          <p class="subtitle">Feedback zu User Stories · Klick-Anleitungen · Aktualitäts-Wächter &amp; Entscheid-Log</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn btn-ghost" href="/api/stories/export/csv">CSV-Backlog</a>
+        <a class="btn btn-ghost" href="/api/deadlines/export.ics">Fristen (.ics)</a>
+        <a class="btn btn-ghost" href="/health" target="_blank" rel="noopener">Health-JSON</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <section class="kpi-grid" aria-label="Betriebskennzahlen">
+      <article class="kpi-card">
+        <span class="kpi-label">Aktualitäts-Score</span>
+        <strong class="kpi-value" id="kpi-compliance">–</strong>
+        <span class="kpi-sub" id="kpi-ampel-summary">Lade Prozesse…</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Offene Must-Stories</span>
+        <strong class="kpi-value" id="kpi-must">–</strong>
+        <span class="kpi-sub">Priorisierte Anforderungen</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Klick-Anleitungen</span>
+        <strong class="kpi-value" id="kpi-processes">–</strong>
+        <span class="kpi-sub" id="kpi-steps">– Schritte in PostgreSQL</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Entscheid-Log</span>
+        <strong class="kpi-value" id="kpi-decisions">–</strong>
+        <span class="kpi-sub">Nachvollziehbare Entscheide</span>
+      </article>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Hauptbereiche">
+      <button class="tab-btn active" role="tab" aria-selected="true" data-tab="requirements">
+        1. Feedback → User Stories
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="processes">
+        2. Klick-Anleitungen &amp; Reviews
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="decisions">
+        3. Entscheid-Log &amp; Fristen-Wächter
+      </button>
+    </nav>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <!-- TAB 1: REQUIREMENTS ENGINE -->
+    <section id="tab-requirements" class="tab-panel active">
+      <div class="split-layout">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Feedback &amp; Ideen erfassen</h2>
+              <p class="muted">Formlos beschreiben (z. B. eBanking-Kundenärger oder Büro-Engpass) — die Engine übersetzt automatisch in User Story, Tasks &amp; Akzeptanzkriterien.</p>
+            </div>
+          </div>
+
+          <form id="feedback-form" class="form-stack">
+            <div class="form-row">
+              <label>
+                Bereich / Rolle
+                <select id="fb-role" name="sourceRole">
+                  <option value="Mobile-Banking-Kundschaft">Mobile-Banking-Kundschaft</option>
+                  <option value="eBanking-Support">eBanking-Support</option>
+                  <option value="IT-Betrieb">IT-Betrieb</option>
+                  <option value="Buchhaltung">Buchhaltung</option>
+                  <option value="Kundenberatung / Filiale">Kundenberatung / Filiale</option>
+                  <option value="Projektleitung">Projektleitung</option>
+                  <option value="Allgemein / KMU">Allgemein / KMU</option>
+                </select>
+              </label>
+
+              <label>
+                Kategorie
+                <select id="fb-type" name="feedbackType">
+                  <option value="kunden_aerger">Kundenärger / Störung</option>
+                  <option value="prozess_engpass">Prozess-Engpass</option>
+                  <option value="idee">Verbesserungsidee</option>
+                  <option value="compliance">Compliance / Sicherheit / Frist</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                Dringlichkeit
+                <select id="fb-urgency" name="urgency">
+                  <option value="normal">Normal</option>
+                  <option value="hoch" selected>Hoch</option>
+                  <option value="kritisch">Kritisch</option>
+                </select>
+              </label>
+
+              <label>
+                Verknüpfte Klick-Anleitung (optional)
+                <select id="fb-process" name="processId">
+                  <option value="">Keine Verknüpfung</option>
+                </select>
+              </label>
+
+              <label>
+                Ziel- / Prüffrist (optional)
+                <input type="date" id="fb-due" name="dueDate" />
+              </label>
+            </div>
+
+            <label>
+              Feedback / Problem / Idee im Klartext
+              <textarea id="fb-text" name="rawFeedback" rows="4" required
+                placeholder="Beispiel: Kunden im eBanking finden den PDF-Export für Jahresauszüge nicht und rufen dauernd den Support an, weil der Button tief im Untermenü versteckt ist sowie keine Vorschau existiert."></textarea>
+            </label>
+
+            <div class="example-chips">
+              <span class="muted">Schnell-Beispiele:</span>
+              <button type="button" class="chip" data-example="ebanking">eBanking PDF-Export</button>
+              <button type="button" class="chip" data-example="mobile">Mobile-Banking Push-Timeout</button>
+              <button type="button" class="chip" data-example="kmu">KMU Ferien-Stellvertretung</button>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" id="btn-preview" class="btn btn-secondary">Vorschau generieren</button>
+              <button type="submit" class="btn btn-primary">Übersetzen &amp; speichern</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card preview-card" id="preview-box">
+          <div class="card-header">
+            <div>
+              <h2>Automatische Übersetzung (Live-Vorschau)</h2>
+              <p class="muted">100 % lokal, regelbasiert und reproduzierbar — ohne bezahlte KI-APIs.</p>
+            </div>
+          </div>
+          <div id="preview-content" class="preview-empty">
+            Gib links ein Problem oder eine Idee ein und klicke auf <strong>«Vorschau generieren»</strong>, um die automatisch erzeugte User Story, geschnittene Tasks, Akzeptanzkriterien und den Duplikat-Radar zu sehen.
+          </div>
+        </article>
+      </div>
+
+      <article class="card backlog-card">
+        <div class="card-header backlog-header">
+          <div>
+            <h2>Requirements-Backlog</h2>
+            <p class="muted">Priorisiert nach Score &amp; Team-Votes. Tasks abhaken, bewerten oder verbindlich entscheiden.</p>
+          </div>
+          <div class="filter-bar">
+            <input type="search" id="filter-q" placeholder="Suchen…" aria-label="Backlog durchsuchen" />
+            <select id="filter-status" aria-label="Nach Status filtern">
+              <option value="Alle">Alle Status</option>
+              <option value="Eingang">Eingang</option>
+              <option value="Bereit">Bereit</option>
+              <option value="Angenommen">Angenommen</option>
+              <option value="Zurückgestellt">Zurückgestellt</option>
+              <option value="Abgelehnt">Abgelehnt</option>
+              <option value="Umgesetzt">Umgesetzt</option>
+            </select>
+            <select id="filter-moscow" aria-label="Nach MoSCoW filtern">
+              <option value="Alle">Alle MoSCoW</option>
+              <option value="Must">Must</option>
+              <option value="Should">Should</option>
+              <option value="Could">Could</option>
+            </select>
+          </div>
+        </div>
+        <div id="stories-list" class="stories-list">Lade Backlog…</div>
+      </article>
+    </section>
+
+    <!-- TAB 2: KLICK-ANLEITUNGEN -->
+    <section id="tab-processes" class="tab-panel">
+      <div class="process-layout">
+        <aside class="card process-sidebar">
+          <div class="card-header">
+            <h2>Prozesse &amp; Ampel</h2>
+          </div>
+          <div id="processes-list" class="process-list">Lade Prozesse…</div>
+
+          <hr class="divider" />
+          <h3>Neue Klick-Anleitung</h3>
+          <form id="process-form" class="form-stack">
+            <label>
+              Titel
+              <input type="text" id="proc-title" required placeholder="z. B. TWINT-Limit erhöhen" />
+            </label>
+            <div class="form-row">
+              <label>
+                Kategorie
+                <input type="text" id="proc-category" value="eBanking-Support" />
+              </label>
+              <label>
+                Verantwortlich
+                <input type="text" id="proc-owner" value="eBanking-Support" />
+              </label>
+            </div>
+            <label>
+              Prüfintervall (Tage)
+              <select id="proc-interval">
+                <option value="30">Alle 30 Tage</option>
+                <option value="60">Alle 60 Tage</option>
+                <option value="90" selected>Alle 90 Tage (Quartal)</option>
+                <option value="180">Alle 180 Tage (Halbjahr)</option>
+                <option value="365">Alle 365 Tage (Jährlich)</option>
+              </select>
+            </label>
+            <label>
+              Kurzbeschreibung
+              <textarea id="proc-summary" rows="2" placeholder="Wann wird diese Anleitung benötigt?"></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary">Prozess anlegen</button>
+          </form>
+        </aside>
+
+        <article class="card process-detail" id="process-detail">
+          <p class="muted">Wähle links eine Klick-Anleitung aus.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB 3: ENTSCHEID-LOG & FRISTEN -->
+    <section id="tab-decisions" class="tab-panel">
+      <div class="split-layout">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Fristen- &amp; Review-Wächter</h2>
+              <p class="muted">Alle fälligen Prozess-Reviews und Anforderungsfristen sortiert nach Risiko-Ampel.</p>
+            </div>
+            <a class="btn btn-secondary" href="/api/deadlines/export.ics">In Kalender (.ics)</a>
+          </div>
+          <div id="deadlines-list" class="table-wrap">Lade Fristen…</div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Entscheid-Log (Audit-Verlauf)</h2>
+              <p class="muted">Lückenlose Begründungen aller Entscheide und Aktualitäts-Bestätigungen.</p>
+            </div>
+          </div>
+          <div id="decisions-list" class="timeline">Lade Entscheid-Log…</div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- Live-Betriebs-Panel (ATL Nachweis-Leiste) -->
+  <footer class="ops-bar" aria-label="Live-Betriebsstatus">
+    <div class="container ops-bar-inner">
+      <div class="ops-pill">
+        <span class="dot" id="ops-dot"></span>
+        <span>DB: <strong id="ops-db">prüfe…</strong></span>
+      </div>
+      <div class="ops-pill">Datensätze: <strong id="ops-counts">–</strong></div>
+      <div class="ops-pill">Health: <a href="/health" target="_blank" rel="noopener" id="ops-health">/health</a></div>
+      <div class="ops-pill">Version: <strong id="ops-version">–</strong> · Commit: <code id="ops-commit">–</code></div>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

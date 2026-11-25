@@ -12,22 +12,30 @@ Entwickelt und betrieben im Rahmen der **Anwendungs- und Transferleistung (ATL)*
 - **Entscheid-Log:** Nachvollziehbare Status-Historie (*Eingang → Bereit → Angenommen / Zurückgestellt / Abgelehnt*) mit Begründung.
 - **Live-Betriebs-Panel & Healthcheck:** Aktiver `/health`-Endpunkt inkl. PostgreSQL-Verbindungsprüfung sowie Anzeige von DB-Status, Datensatz-Zähler und laufender App-Version (Git-Commit-Hash).
 
-## Schnellstart (lokal mit Docker Compose)
+## Schnellstart (Betrieb / Drittperson mit fertigem GHCR-Image)
 
-> Hinweis: Das vollständige Docker-Compose-Setup folgt im ersten Feature-Branch (`feat/app-und-docker`).
+Das fertige Multi-Arch-Image (`linux/amd64` & `linux/arm64`) liegt öffentlich unter `ghcr.io/baniox/requirements-engine`. Es startet ohne Code-Anpassungen auf Windows (x64 & ARM64), macOS und Linux:
 
-1. Platzhalter-Konfiguration kopieren und eigene lokale Passwörter setzen:
+1. Beispielkonfiguration kopieren und eigenes lokales Datenbank-Passwort setzen:
    ```powershell
    Copy-Item .env.example .env
    ```
-2. Stack starten:
+2. Container-Stack starten (PostgreSQL + App + Cloudflare Quick Tunnel + Watchtower):
    ```powershell
    docker compose up -d
    ```
-3. Healthcheck prüfen:
+   *(Für eine fest gepinnte Abgabe-Version z. B. `APP_IMAGE_TAG=v1.0.0` in `.env` setzen.)*
+3. Healthcheck & öffentliche HTTPS-URL prüfen:
    ```powershell
    curl http://localhost:3000/health
+   docker compose logs tunnel
    ```
+
+## Lokale Entwicklung (Image lokal bauen)
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
 
 ## Tests ausführen
 
