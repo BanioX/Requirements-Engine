@@ -926,56 +926,145 @@ body {
   margin: 0 0 6px;
 }
 
-/* Quantifizieren & M:S-Buchungsbox */
+/* +1 Upvote / Fall-Erfassungsbox */
 .quant-box {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: 10px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
 }
 
-.qty-stepper {
-  display: inline-flex;
+.quant-row {
+  display: flex;
   align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.quant-note-input {
+  flex: 1 1 220px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
-  padding: 1px;
-  gap: 2px;
-}
-
-.qty-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--silver-2);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.qty-btn:hover {
-  background: var(--surface);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.82rem;
   color: var(--ink);
 }
 
-.qty-input {
-  width: 42px;
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  text-align: center;
-  font: 700 0.84rem/1 ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
+.quant-note-input::placeholder {
+  color: #94a3b8;
 }
 
-.qty-input:focus {
+.quant-note-input:focus {
   outline: none;
+  background: var(--surface);
+  border-color: var(--blue);
+}
+
+/* Netflix-Kacheln: Horizontale Feedback-Rail pro Requirement */
+.tiles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tiles-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tiles-nav {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.tile-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--silver-2);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.tile-arrow:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.tiles-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.fb-tile {
+  flex: 0 0 236px;
+  scroll-snap-align: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: transform 0.16s var(--ease), border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+
+.fb-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-2);
+  box-shadow: var(--shadow);
+}
+
+.tile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--silver-3);
+}
+
+.tile-quote {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile-quote.muted {
+  color: var(--silver-3);
+  font-style: italic;
+}
+
+.tile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 6px;
+  border-top: 1px solid var(--subtle);
+  font-size: 0.72rem;
+  color: var(--silver-2);
 }
 
 .feas-group {

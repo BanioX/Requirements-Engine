@@ -413,7 +413,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         dueDate,
         durationSeconds,
         durationText,
-        interactionRef
+        interactionRef,
+        customerRef
       } = req.body || {};
       if (typeof rawFeedback !== 'string' || rawFeedback.trim().length > 2000) {
         return res.status(400).json({ error: 'Feedback muss ein Text mit maximal 2000 Zeichen sein.' });
@@ -423,6 +424,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const resolvedOrigin = origin || 'kunde';
       const safeAuthor = typeof submittedBy === 'string' ? submittedBy.trim().slice(0, 80) : '';
       const safeRef = typeof interactionRef === 'string' ? interactionRef.trim().slice(0, 64) : '';
+      const safeCustomer = typeof customerRef === 'string' ? customerRef.trim().slice(0, 100) : '';
       const parsedDuration = parseDurationSeconds(durationSeconds, durationText);
 
       const existing = await store.listStories();
@@ -442,6 +444,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
         submittedBy: safeAuthor,
         durationSeconds: parsedDuration,
         interactionRef: safeRef,
+        customerRef: safeCustomer,
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
         ...analyzed
@@ -469,7 +472,21 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
     }
   });
 
-  // Quantifizierbare Upvotes (+1 bis +1000) — zwingend mit Zeitaufwand (Minimalwert: 1 Minute = 60 Sek.)
+  // Alle einzelnen Kundenfeedbacks / Fall-Logs zu einer Anforderung (für Kachel-Ansicht)
+  app.get('/api/stories/:id/mentions', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const current = await store.getStoryById(id);
+      if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
+      const mentions = store.listStoryMentions ? await store.listStoryMentions(id, req.query.limit) : [];
+      res.json(mentions);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Strikter +1 Upvote pro Fall — zwingend mit Zeitaufwand (min. 1 Min.) + optionalem Kundenfeedback / Kunde / Ref-ID
   app.post('/api/stories/:id/vote', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
@@ -477,26 +494,39 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins } = {}) {
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
 
-      const rawDelta = Number(req.body?.delta ?? 1);
-      const delta = Number.isInteger(rawDelta) && rawDelta >= 1 && rawDelta <= 1000 ? rawDelta : 1;
-      const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
-      const interactionRef = typeof req.body?.interactionRef === 'string' ? req.body.interactionRef.trim().slice(0, 64) : '';
-      const durationPerItem = parseDurationSeconds(req.body?.durationSeconds, req.body?.durationText);
+      if (req.body?.delta !== undefined && Number(req.body.delta) !== 1) {
+        return res.status(400).json({ error: 'Pro Fall ist genau +1 Upvote möglich.' });
+      }
 
-      if (durationPerItem < 60) {
+      const durationSeconds = parseDurationSeconds(req.body?.durationSeconds, req.body?.durationText);
+      if (durationSeconds < 60) {
         return res.status(400).json({ error: 'Zeitaufwand erforderlich (mindestens 01:00).' });
       }
+
+      const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
+      const safeChannel = allowedChannels.has(req.body?.channel) ? req.body.channel : '';
+      const recordedBy = typeof req.body?.recordedBy === 'string' ? req.body.recordedBy.trim().slice(0, 80) : '';
+      const interactionRef = typeof req.body?.interactionRef === 'string' ? req.body.interactionRef.trim().slice(0, 64) : '';
+      const feedbackNote = typeof req.body?.feedbackNote === 'string' ? req.body.feedbackNote.trim().slice(0, 1000) : '';
+      const customerRef = typeof req.body?.customerRef === 'string' ? req.body.customerRef.trim().slice(0, 100) : '';
 
       const recalculated = scoreAndPrioritize({
         rawText: current.raw_feedback,
         urgency: current.urgency,
         feedbackType: current.feedback_type,
         feasibility: current.feasibility || 'unbewertet',
-        votes: Number(current.votes) + delta,
+        votes: Number(current.votes) + 1,
         tasks: Array.isArray(current.tasks_json) ? current.tasks_json : []
       });
 
-      const updated = await store.upvoteStory(id, recalculated, delta, recordedBy, durationPerItem, interactionRef);
+      const updated = await store.upvoteStory(id, recalculated, {
+        recordedBy,
+        durationSeconds,
+        interactionRef,
+        feedbackNote,
+        customerRef,
+        channel: safeChannel
+      });
       res.json(updated);
     } catch (err) {
       next(err);

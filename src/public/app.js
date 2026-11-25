@@ -6,7 +6,9 @@ const state = {
   ampel: 'alle',
   mode: 'all', // 'all' | 'active' | 'done'
   expandedId: null,
+  expandedMentions: [],
   effortId: null,
+  effortChannel: '',
   freshId: null,
   pendingStatus: null,
   pendingDecFeedback: null, // { id, sentiment }
@@ -514,21 +516,85 @@ async function loadIdeas() {
       const effortBarHtml = effortOpen
         ? `
           <form class="quant-box js-quant-form" data-id="${item.id}" style="margin-top:10px;">
-            <div class="qty-stepper" title="Anzahl Meldungen">
-              <button type="button" class="qty-btn js-qty-step" data-step="-1" aria-label="Weniger">−</button>
-              <input type="number" name="delta" class="qty-input" min="1" max="1000" value="1" aria-label="Anzahl Meldungen" />
-              <button type="button" class="qty-btn js-qty-step" data-step="1" aria-label="Mehr">+</button>
+            <div class="quant-row">
+              ${renderDurationPickerHtml({ initialSec: 0, placeholder: 'Zeit' })}
+              <input type="text" name="customerRef" class="author-input" placeholder="Kunde (optional)" aria-label="Betroffener Kunde (optional)" style="width:132px;" />
+              <input type="text" name="recordedBy" class="author-input" placeholder="Erfasst von" aria-label="Erfasst von (optional)" style="width:124px;" />
+              <input type="text" name="interactionRef" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" style="width:102px;" />
             </div>
-            ${renderDurationPickerHtml({ initialSec: 0, placeholder: 'Zeit' })}
-            <input type="text" name="interactionRef" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" style="width:104px;" />
-            <button type="submit" class="btn-primary js-quant-submit">Erfassen</button>
+            <div class="quant-row">
+              <input type="text" name="feedbackNote" class="quant-note-input" placeholder="Kundenfeedback zu diesem Fall (optional)…" aria-label="Kundenfeedback zu diesem Fall" />
+              <div class="channel-group" role="group" aria-label="Kanal dieses Falls">
+                ${['Persönlich', 'Telefon', 'Chat', 'E-Mail']
+                  .map(
+                    (ch) =>
+                      `<button type="button" class="ch-btn js-eff-ch ${state.effortChannel === ch ? 'active' : ''}" data-channel="${ch}">${ch}</button>`
+                  )
+                  .join('')}
+              </div>
+              <button type="submit" class="btn-primary js-quant-submit">+1 Erfassen</button>
+            </div>
           </form>
+        `
+        : '';
+
+      const mentionsList = expanded ? state.expandedMentions : [];
+      const tilesHtml = expanded
+        ? `
+          <div class="tiles-section">
+            <div class="tiles-head">
+              <div class="drawer-label" style="margin:0;">Feedbacks &amp; Logs (${mentionsList.length})</div>
+              ${
+                mentionsList.length > 2
+                  ? `<div class="tiles-nav">
+                      <button type="button" class="tile-arrow js-rail-scroll" data-dir="-1" aria-label="Nach links">‹</button>
+                      <button type="button" class="tile-arrow js-rail-scroll" data-dir="1" aria-label="Nach rechts">›</button>
+                    </div>`
+                  : ''
+              }
+            </div>
+            ${
+              mentionsList.length === 0
+                ? '<div style="font-size:0.8rem; color:var(--silver-3);">Noch keine Einzelfälle geloggt.</div>'
+                : `<div class="tiles-rail">
+                    ${mentionsList
+                      .map((m) => {
+                        const dt = fmtDateCH(m.created_at);
+                        const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const dur = Number(m.duration_seconds) || 0;
+                        const countNote = Number(m.delta) > 1 ? `<span class="tag-mini">${m.delta}×</span>` : '';
+                        return `
+                          <div class="fb-tile">
+                            <div>
+                              <div class="tile-top">
+                                <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
+                                ${dur > 0 ? `<span class="time-chip">⏱ ${esc(fmtMMSS(dur))}</span>` : countNote}
+                              </div>
+                              <p class="tile-quote ${m.feedback_note ? '' : 'muted'}" style="margin-top:7px;">
+                                ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
+                              </p>
+                            </div>
+                            <div class="tile-meta">
+                              ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
+                              ${m.recorded_by ? `<span>Von: ${esc(m.recorded_by)}</span>` : ''}
+                              ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
+                              ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join('')}
+                  </div>`
+            }
+          </div>
         `
         : '';
 
       const drawerHtml = expanded
         ? `
           <div class="idea-drawer">
+            ${tilesHtml}
+
             <div class="drawer-row">
               <div class="feas-group">
                 <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
@@ -639,27 +705,23 @@ async function loadIdeas() {
     })
     .join('');
 
-  // Alle Zeitrad-Picker im aufgeklappten Drawer aktivieren + Live-Vorschau am Buchen-Button
+  // Zeitrad-Picker und Kanal-Toggles im +1 Upvote-Formular aktivieren
   listEl.querySelectorAll('.js-quant-form').forEach((formEl) => {
     const picker = formEl.querySelector('[data-dur-picker]');
-    const qtyInput = formEl.querySelector('input[name="delta"]');
     const submitBtn = formEl.querySelector('.js-quant-submit');
 
     function syncSubmitLabel() {
-      const qty = Math.max(1, Math.min(1000, parseInt(qtyInput.value, 10) || 1));
-      const perSec = Number(picker?.dataset.sec || 0);
-      const total = qty * perSec;
-      submitBtn.textContent = perSec >= 60 ? `+${qty}× · ${fmtDurationHuman(total)}` : 'Erfassen';
+      const sec = Number(picker?.dataset.sec || 0);
+      submitBtn.textContent = sec >= 60 ? `+1 · ${fmtDurationHuman(sec)}` : '+1 Erfassen';
     }
 
     bindDurationPicker(picker, syncSubmitLabel);
-    qtyInput.addEventListener('input', syncSubmitLabel);
-    formEl.querySelectorAll('.js-qty-step').forEach((btn) => {
+    formEl.querySelectorAll('.js-eff-ch').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        const cur = parseInt(qtyInput.value, 10) || 1;
-        qtyInput.value = String(Math.max(1, Math.min(1000, cur + Number(btn.dataset.step))));
-        syncSubmitLabel();
+        const next = state.effortChannel === btn.dataset.channel ? '' : btn.dataset.channel;
+        state.effortChannel = next;
+        formEl.querySelectorAll('.js-eff-ch').forEach((b) => b.classList.toggle('active', b.dataset.channel === next));
       });
     });
     syncSubmitLabel();
@@ -1218,16 +1280,15 @@ function init() {
   });
 
   document.getElementById('ideas-list').addEventListener('click', async (ev) => {
-    if (ev.target.closest('.dur-picker') || ev.target.closest('.qty-stepper') || ev.target.closest('.js-quant-form')) return;
-
-    const effortToggle = ev.target.closest('.js-effort-toggle');
-    if (effortToggle) {
+    const railArrow = ev.target.closest('.js-rail-scroll');
+    if (railArrow) {
       ev.stopPropagation();
-      const id = Number(effortToggle.dataset.id);
-      state.effortId = state.effortId === id ? null : id;
-      await loadIdeas();
+      const rail = railArrow.closest('.tiles-section')?.querySelector('.tiles-rail');
+      rail?.scrollBy({ left: Number(railArrow.dataset.dir) * 260, behavior: 'smooth' });
       return;
     }
+
+    if (ev.target.closest('.dur-picker') || ev.target.closest('.js-quant-form')) return;
 
     const copyBtn = ev.target.closest('.js-copy');
     if (copyBtn) {
@@ -1309,6 +1370,7 @@ function init() {
       ev.stopPropagation();
       const id = Number(voteBtn.dataset.id);
       state.effortId = state.effortId === id ? null : id;
+      state.effortChannel = '';
       await loadIdeas();
       if (state.effortId === id) {
         const durEl = document.querySelector(`.js-quant-form[data-id="${id}"] .dur-input`);
@@ -1338,7 +1400,13 @@ function init() {
     const body = ev.target.closest('.js-toggle');
     if (body) {
       const id = Number(body.dataset.id);
-      state.expandedId = state.expandedId === id ? null : id;
+      if (state.expandedId === id) {
+        state.expandedId = null;
+        state.expandedMentions = [];
+      } else {
+        state.expandedId = id;
+        state.expandedMentions = await api(`/api/stories/${id}/mentions`).catch(() => []);
+      }
       state.pendingStatus = null;
       await loadIdeas();
     }
@@ -1349,10 +1417,12 @@ function init() {
     if (quantForm) {
       ev.preventDefault();
       const id = Number(quantForm.dataset.id);
-      const delta = Math.max(1, Math.min(1000, parseInt(quantForm.querySelector('input[name="delta"]').value, 10) || 1));
       const picker = quantForm.querySelector('[data-dur-picker]');
       const durInput = picker?.querySelector('.dur-input');
       const refVal = (quantForm.querySelector('input[name="interactionRef"]')?.value || '').trim();
+      const feedbackNote = (quantForm.querySelector('input[name="feedbackNote"]')?.value || '').trim();
+      const customerRef = (quantForm.querySelector('input[name="customerRef"]')?.value || '').trim();
+      const recordedBy = (quantForm.querySelector('input[name="recordedBy"]')?.value || '').trim();
       const durationSeconds = durInput && durInput.value.trim() ? parseMMSS(durInput.value) : Number(picker?.dataset.sec || 0);
 
       if (durationSeconds < 60) {
@@ -1365,17 +1435,23 @@ function init() {
         await api(`/api/stories/${id}/vote`, {
           method: 'POST',
           body: JSON.stringify({
-            delta,
+            delta: 1,
             durationSeconds,
             interactionRef: refVal,
-            recordedBy: document.getElementById('fb-author')?.value.trim() || ''
+            feedbackNote,
+            customerRef,
+            recordedBy,
+            channel: state.effortChannel
           })
         });
         state.votedIds.add(id);
         localStorage.setItem('re_voted', JSON.stringify([...state.votedIds]));
-        const totalAdded = delta * durationSeconds;
         state.effortId = null;
-        showToast(`+${delta}× (${fmtDurationHuman(totalAdded)}) erfasst.`);
+        state.effortChannel = '';
+        if (state.expandedId === id) {
+          state.expandedMentions = await api(`/api/stories/${id}/mentions`).catch(() => []);
+        }
+        showToast(`+1 (${fmtDurationHuman(durationSeconds)}) erfasst.`);
         await Promise.all([loadIdeas(), loadHealth()]);
       } catch (err) {
         showToast(err.message);

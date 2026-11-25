@@ -4,6 +4,7 @@ import { createApp } from '../src/app.js';
 
 function createMockStore({ dbHealthy = true } = {}) {
   const stories = [];
+  const mentions = [];
   const processes = [
     {
       id: 1,
@@ -101,15 +102,46 @@ function createMockStore({ dbHealthy = true } = {}) {
         trafficLight: { status: 'none', label: 'Kein Termin', daysRemaining: null }
       };
       stories.push(s);
+      mentions.push({
+        id: mentions.length + 1,
+        story_id: s.id,
+        delta: 1,
+        recorded_by: s.submitted_by,
+        duration_seconds: dur,
+        interaction_ref: payload.interactionRef || '',
+        feedback_note: s.raw_feedback,
+        customer_ref: payload.customerRef || '',
+        channel: s.channel,
+        created_at: s.created_at
+      });
       return s;
     },
-    async upvoteStory(id, recalculated, delta = 1, _recordedBy = '', durationSecondsPerItem = 0) {
+    async listStoryMentions(storyId) {
+      return mentions.filter((m) => m.story_id === storyId).reverse();
+    },
+    async upvoteStory(
+      id,
+      recalculated,
+      { recordedBy = '', durationSeconds = 60, interactionRef = '', feedbackNote = '', customerRef = '', channel = '' } = {}
+    ) {
       const s = stories.find((x) => x.id === id);
       if (!s) return null;
-      s.votes += delta;
-      s.total_duration_seconds += durationSecondsPerItem * delta;
-      if (durationSecondsPerItem > 0) s.timed_mentions += delta;
+      s.votes += 1;
+      s.total_duration_seconds += durationSeconds;
+      s.timed_mentions += 1;
       s.priority_score = recalculated.score;
+      mentions.push({
+        id: mentions.length + 1,
+        story_id: id,
+        delta: 1,
+        recorded_by: recordedBy,
+        duration_seconds: durationSeconds,
+        interaction_ref: interactionRef,
+        feedback_note: feedbackNote,
+        customer_ref: customerRef,
+        channel,
+        created_at: new Date().toISOString()
+      });
       return s;
     },
     async getReportData({ granularity = 'month' } = {}) {
@@ -322,23 +354,46 @@ test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierba
     });
     assert.equal(badVote.status, 400);
 
-    // Quantifizierbare Nachbuchung: 4 weitere Fälle à 03:00 (720 s) -> gesamt 990 s aus 5 Fällen
+    // Mehr als +1 Upvote pro Fall muss ebenfalls mit HTTP 400 abgelehnt werden
+    const badMulti = await fetch(`${baseUrl}/api/stories/1/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta: 5, durationText: '03:00' })
+    });
+    assert.equal(badMulti.status, 400);
+
+    // Echter +1 Fall mit individuellem Kundenfeedback, Kunde, Zeit & Ref-ID (03:00 -> gesamt 450 s aus 2 Fällen)
     const voteRes = await fetch(`${baseUrl}/api/stories/1/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delta: 4, durationText: '3:00' })
+      body: JSON.stringify({
+        durationText: '3:00',
+        feedbackNote: 'Kunde musste Sprache erneut umstellen.',
+        customerRef: 'Muster AG',
+        recordedBy: 'Max Beispiel',
+        interactionRef: 'CRM-9002',
+        channel: 'Telefon'
+      })
     });
     assert.equal(voteRes.status, 200);
     const voted = await voteRes.json();
-    assert.equal(voted.votes, 5);
-    assert.equal(voted.total_duration_seconds, 990);
+    assert.equal(voted.votes, 2);
+    assert.equal(voted.total_duration_seconds, 450);
+
+    // Einzelfall-Kacheln abrufen
+    const mentionsRes = await fetch(`${baseUrl}/api/stories/1/mentions`);
+    assert.equal(mentionsRes.status, 200);
+    const mentionsList = await mentionsRes.json();
+    assert.equal(mentionsList.length, 2);
+    assert.equal(mentionsList[0].customer_ref, 'Muster AG');
+    assert.equal(mentionsList[0].duration_seconds, 180);
 
     const res = await fetch(`${baseUrl}/api/report?from=2026-01-01&to=2026-12-31&granularity=day&timeMode=measured`);
     assert.equal(res.status, 200);
     const rep = await res.json();
     assert.equal(rep.summary.totalStories, 1);
-    assert.equal(rep.summary.totalMentions, 5);
-    assert.equal(rep.summary.measuredSeconds, 990);
+    assert.equal(rep.summary.totalMentions, 2);
+    assert.equal(rep.summary.measuredSeconds, 450);
     assert.equal(rep.summary.hasEstimated, false);
     assert.equal(rep.filters.granularity, 'day');
     assert.equal(rep.mentionsTimeline[0].bucket, '2026-11-25');
