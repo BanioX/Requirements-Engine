@@ -1,0 +1,21 @@
+# Vorlage für Atlassian Forge (Confluence Cloud Macro Addon)
+# Nutzung: `forge register` -> `forge deploy` -> `forge install`
+modules:
+  macro:
+    - key: requirements-engine-board
+      title: Requirements Engine
+      description: Eingegangenes Kunden- & Team-Feedback mit Ampel-Machbarkeit und Voting
+      resource: board-ui
+      layout: full-width
+resources:
+  - key: board-ui
+    path: ../../src/public
+permissions:
+  external:
+    fetch:
+      backend:
+        - address: "https://*.trycloudflare.com"
+app:
+  runtime:
+    name: nodejs24.x
+  id: ari:cloud:ecosystem::app/REPLACE_WITH_FORGE_APP_ID

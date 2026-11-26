@@ -1,0 +1,28 @@
+{
+  "name": "ONESTRAND Requirements Engine",
+  "short_name": "ReqEngine",
+  "description": "Internes Requirements-Engineering-, Mengen- & Zeitaufwand-Portal (Web, Desktop-App & Confluence-Addon).",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#000000",
+  "lang": "de-CH",
+  "icons": [
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
