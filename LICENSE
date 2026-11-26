@@ -1,0 +1,38 @@
+PROPRIETÄRE LIZENZ — ALLE RECHTE VORBEHALTEN (ALL RIGHTS RESERVED)
+
+Copyright © 2026 Onestrand | Alban Hyseni. Alle Rechte vorbehalten.
+
+Dieses Softwareprojekt («ONESTRAND · Requirements Engine»), einschliesslich
+sämtlicher Quellcodes, Benutzeroberflächen, Designs, Marken- und
+Logoelemente, Dokumentationen und Begleitdateien, ist geistiges Eigentum
+von Onestrand | Alban Hyseni und unterliegt dem Urheberrecht.
+
+Ohne ausdrückliche, vorgängige schriftliche Zustimmung von
+Onestrand | Alban Hyseni ist es untersagt:
+1. diese Software oder Teile davon zu kopieren, zu vervielfältigen, zu
+   verändern, abgeleitete Werke zu erstellen oder weiterzuverbreiten;
+2. diese Software kommerziell oder betrieblich zu nutzen, zu hosten, zu
+   verkaufen, unterzulizenzieren oder Dritten zugänglich zu machen.
+
+Die öffentliche Einsehbarkeit dieses Repositories auf GitHub dient
+ausschliesslich der Ansicht und fachlichen Prüfung (insbesondere im Rahmen
+der HFWI-Leistungsbewertung) und begründet keinerlei Nutzungs-, Verwertungs-
+oder Open-Source-Lizenzrechte.
+
+Drittkomponenten:
+Eingebundene Open-Source-Pakete (gemäss package.json) sowie Inline-Icons
+(Lucide Icons, ISC/MIT-Lizenz) bleiben den jeweiligen Lizenzen ihrer
+Rechteinhaber unterstellt.
+
+---
+
+PROPRIETARY LICENSE — ALL RIGHTS RESERVED
+
+Copyright © 2026 Onestrand | Alban Hyseni. All rights reserved.
+
+This software («ONESTRAND · Requirements Engine»), including all source code,
+user interfaces, visual assets, branding, and documentation, is proprietary
+and confidential intellectual property of Onestrand | Alban Hyseni.
+No license or right to copy, modify, distribute, host, or use this software
+in whole or in part is granted without prior written permission from the
+copyright holder.

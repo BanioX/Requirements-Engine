@@ -106,3 +106,13 @@ npm test
 - [Betriebs-Checkliste (6 Bereiche, 24 Punkte)](docs/BETRIEBS_CHECKLISTE.md)
 - [KI-Arbeitsprotokoll](docs/KI_ARBEITSPROTOKOLL.md)
 - [Confluence-Integration (`?embed=1` & Forge)](integrations/confluence/README.md)
+
+---
+
+## Lizenz
+
+**Proprietär — Alle Rechte vorbehalten.**
+
+Copyright © 2026 Onestrand | Alban Hyseni. Alle Rechte vorbehalten.
+
+Siehe [LICENSE](LICENSE). Keine Nutzung, Vervielfältigung, Veränderung oder Weitergabe ohne vorgängige schriftliche Zustimmung.
