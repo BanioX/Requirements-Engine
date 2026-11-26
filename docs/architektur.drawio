@@ -1,0 +1,113 @@
+<mxfile host="app.diagrams.net" modified="2026-11-26T18:25:00.000Z" agent="ONESTRAND Requirements Engine" version="24.7.0" type="device">
+  <diagram id="reqengine-arch-m042" name="Zielbild &amp; Architektur (M042)">
+    <mxGraphModel dx="1420" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title Banner -->
+        <mxCell id="title" value="ONESTRAND · Requirements Engine — Zielbild &amp; Betriebsarchitektur (HFWI M042)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#1e293b;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1020" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Blau = Request-Flow (1–5)  |  Grün = Automatisierter Deployment-Flow ab main (A–D)  |  0 CHF Betriebskosten" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#475569;" vertex="1" parent="1">
+          <mxGeometry x="40" y="54" width="900" height="24" as="geometry"/>
+        </mxCell>
+
+        <!-- Group 1: Internet & Cloudflare -->
+        <mxCell id="grp_ext" value="Internet &amp; Cloudflare Edge (TLS / HTTPS)" style="swimlane;whiteSpace=wrap;html=1;rounded=1;arcSize=8;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#1e3a8a;startSize=32;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="290" height="440" as="geometry"/>
+        </mxCell>
+        <mxCell id="user_web" value="&lt;b&gt;Nutzende / Dozent&lt;/b&gt;&lt;br/&gt;Web-Browser (DE / EN)&lt;br/&gt;iPhone- &amp; Desktop-PWA&lt;br/&gt;Confluence (?embed=1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#3b82f6;strokeWidth=1.5;fontSize=12;fontColor=#0f172a;" vertex="1" parent="grp_ext">
+          <mxGeometry x="30" y="60" width="230" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cf_edge" value="&lt;b&gt;Cloudflare Edge&lt;/b&gt;&lt;br/&gt;HTTPS / TLS 1.3 Terminierung&lt;br/&gt;&lt;i&gt;Quick Tunnel (*.trycloudflare.com)&lt;/i&gt;&lt;br/&gt;&lt;i&gt;Optional: re.onestrand.ch&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#f97316;strokeWidth=2;fontSize=12;fontColor=#0f172a;" vertex="1" parent="grp_ext">
+          <mxGeometry x="30" y="250" width="230" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- Group 2: Local Laptop (Docker Compose) -->
+        <mxCell id="grp_host" value="Lokaler Laptop (Windows ARM64 + Docker Desktop — docker compose up -d)" style="swimlane;whiteSpace=wrap;html=1;rounded=1;arcSize=8;fillColor=#f8fafc;strokeColor=#334155;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#0f172a;startSize=32;" vertex="1" parent="1">
+          <mxGeometry x="400" y="100" width="670" height="580" as="geometry"/>
+        </mxCell>
+        <mxCell id="grp_net" value="Internes Docker-Netzwerk (keine offenen Router-Ports nötig)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;dashed=1;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.5;fontSize=11;fontColor=#475569;spacingTop=8;" vertex="1" parent="grp_host">
+          <mxGeometry x="25" y="52" width="620" height="400" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_tunnel" value="&lt;b&gt;Cloudflare Tunnel&lt;/b&gt;&lt;br/&gt;Container: cloudflared&lt;br/&gt;Verschlüsselter Outbound-QUIC&lt;br/&gt;→ http://app:3000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=1.5;fontSize=11.5;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="45" y="105" width="200" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_app" value="&lt;b&gt;App-Container (app)&lt;/b&gt;&lt;br/&gt;Node.js 24 Alpine (Non-Root)&lt;br/&gt;REST API · 5-Rollen-RBAC · PWA&lt;br/&gt;&lt;b&gt;GET /health&lt;/b&gt; (SELECT 1)&lt;br/&gt;Port :3000 intern" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=2;fontSize=11.5;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="300" y="95" width="230" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_db" value="&lt;b&gt;Datenbank-Container (db)&lt;/b&gt;&lt;br/&gt;PostgreSQL 17 Alpine&lt;br/&gt;pg_isready Healthcheck&lt;br/&gt;TCP :5432 intern" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.5;fontSize=11.5;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="300" y="290" width="230" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="vol_pg" value="&lt;b&gt;Docker Named Volume&lt;/b&gt;&lt;br/&gt;pg_data (persistent)&lt;br/&gt;/var/lib/postgresql/data" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#dcfce7;strokeColor=#15803d;strokeWidth=1.8;fontSize=11.5;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="45" y="282" width="200" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_wt" value="&lt;b&gt;Auto-Updater (watchtower)&lt;/b&gt;&lt;br/&gt;nickfedor/watchtower (Poll: 30 s)&lt;br/&gt;Scope: requirements-engine&lt;br/&gt;Aktualisiert nur Container app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#385623;strokeWidth=2;fontSize=11.5;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="395" y="472" width="250" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="f_env" value="&lt;b&gt;.env (lokal, nicht in Git)&lt;/b&gt;&lt;br/&gt;POSTGRES_PASSWORD, APP_IMAGE_TAG&lt;br/&gt;Per .gitignore &amp; Gitleaks geschützt" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;size=16;fillColor=#fefce8;strokeColor=#ca8a04;strokeWidth=1.5;fontSize=11;fontColor=#0f172a;" vertex="1" parent="grp_host">
+          <mxGeometry x="25" y="472" width="255" height="88" as="geometry"/>
+        </mxCell>
+
+        <!-- Group 3: GitHub Cloud -->
+        <mxCell id="grp_gh" value="GitHub Cloud (CI/CD &amp; Container Registry)" style="swimlane;whiteSpace=wrap;html=1;rounded=1;arcSize=8;fillColor=#f0fdf4;strokeColor=#385623;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#14532d;startSize=32;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="100" width="420" height="580" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh_repo" value="&lt;b&gt;GitHub Repository&lt;/b&gt;&lt;br/&gt;BanioX/Requirements-Engine (öffentlich)&lt;br/&gt;Feature-Branch → Pull Request → main&lt;br/&gt;GitHub Projects Planungs-Board" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#385623;strokeWidth=1.5;fontSize=12;fontColor=#0f172a;" vertex="1" parent="grp_gh">
+          <mxGeometry x="35" y="65" width="350" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh_ci" value="&lt;b&gt;GitHub Actions (CI/CD Pipeline)&lt;/b&gt;&lt;br/&gt;1. 26 automatisierte Tests (npm test)&lt;br/&gt;2. Gitleaks Secret-Scan (komplette Git-History)&lt;br/&gt;3. Multi-Arch Buildx: linux/amd64 + linux/arm64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#385623;strokeWidth=1.5;fontSize=12;fontColor=#0f172a;" vertex="1" parent="grp_gh">
+          <mxGeometry x="35" y="235" width="350" height="115" as="geometry"/>
+        </mxCell>
+        <mxCell id="gh_ghcr" value="&lt;b&gt;GitHub Container Registry (GHCR)&lt;/b&gt;&lt;br/&gt;ghcr.io/baniox/requirements-engine&lt;br/&gt;Tags: v1.0.0 (Abgabe) · latest · sha-...&lt;br/&gt;Öffentlich pullbar für Drittpersonen" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#15803d;strokeWidth=2;fontSize=12;fontColor=#0f172a;" vertex="1" parent="grp_gh">
+          <mxGeometry x="35" y="425" width="350" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- Note Box bottom left -->
+        <mxCell id="note_prod" value="&lt;b&gt;Portabilität &amp; Praxisbetrieb:&lt;/b&gt;&lt;br/&gt;Derselbe unveränderte docker-compose-Stack läuft:&lt;br/&gt;• Lokal auf Laptop / bei Drittpersonen (0 CHF, Quick Tunnel)&lt;br/&gt;• Optional 24/7 auf Oracle Cloud Always-Free VM (https://re.onestrand.ch)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f8fafc;strokeColor=#64748b;fontSize=11;fontColor=#334155;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="575" width="290" height="105" as="geometry"/>
+        </mxCell>
+
+        <!-- Request Flow Arrows (Blue) -->
+        <mxCell id="e1" value="1. HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2.2;fontColor=#1d4ed8;fontStyle=1;fontSize=11;" edge="1" parent="1" source="user_web" target="cf_edge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="2. Outbound QUIC Tunnel" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ea580c;strokeWidth=2.2;startArrow=classic;endArrow=classic;fontColor=#c2410c;fontStyle=1;fontSize=11;" edge="1" parent="1" source="cf_edge" target="c_tunnel">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="3. HTTP :3000" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2.2;fontColor=#1d4ed8;fontStyle=1;fontSize=11;" edge="1" parent="1" source="c_tunnel" target="c_app">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="4. SQL (:5432)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#059669;strokeWidth=2.2;startArrow=classic;endArrow=classic;fontColor=#047857;fontStyle=1;fontSize=11;" edge="1" parent="1" source="c_app" target="c_db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="5. Persistenz" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#15803d;strokeWidth=2.2;startArrow=classic;endArrow=classic;fontColor=#15803d;fontStyle=1;fontSize=11;" edge="1" parent="1" source="c_db" target="vol_pg">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_env_app" value="Secrets" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;html=1;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#a16207;fontSize=10;" edge="1" parent="1" source="f_env" target="c_db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Deployment Flow Arrows (Green) -->
+        <mxCell id="d1" value="A. Push / PR-Merge auf main" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#385623;strokeWidth=2.2;fontColor=#385623;fontStyle=1;fontSize=11;" edge="1" parent="1" source="gh_repo" target="gh_ci">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="d2" value="B. Multi-Arch Push (v1.0.0 / latest)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#385623;strokeWidth=2.2;fontColor=#385623;fontStyle=1;fontSize=11;" edge="1" parent="1" source="gh_ci" target="gh_ghcr">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="d3" value="C. Pull-Check alle 30 s" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#385623;strokeWidth=2.2;fontColor=#385623;fontStyle=1;fontSize=11;" edge="1" parent="1" source="c_wt" target="gh_ghcr">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="d4" value="D. Auto-Update (Zero Manual Work)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#385623;strokeWidth=2.2;fontColor=#385623;fontStyle=1;fontSize=11;" edge="1" parent="1" source="c_wt" target="c_app">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="616"/>
+              <mxPoint x="990" y="255"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

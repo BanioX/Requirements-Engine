@@ -1,8 +1,13 @@
 # Zielbild und Architektur (Teilaufgabe 1 — 5 Punkte)
 
-> **Status:** Abgeglichen 1:1 mit dem laufenden Produktivsystem (**ONESTRAND · Requirements Engine**, `https://re.onestrand.ch` sowie lokal portabel via `docker compose up -d`).
+> **Status:** Abgeglichen 1:1 mit dem laufenden System (**ONESTRAND · Requirements Engine** — offizieller ATL-Betrieb lokal auf dem Laptop via `docker compose up -d` + Cloudflare Quick Tunnel, 0 CHF; identischer Stack läuft zusätzlich optional 24/7 auf Oracle Cloud Always Free unter `https://re.onestrand.ch`).
 
-## 1. Architekturdiagramm (Mermaid)
+## 1. Architekturdiagramm (`draw.io` Reinzeichnung + Mermaid-Quelle)
+
+- **Editierbare `draw.io`-Datei:** [docs/architektur.drawio](architektur.drawio)
+- **Exportierte Grafik (Bericht):**
+
+![Zielbild und Betriebsarchitektur ONESTRAND Requirements Engine](images/architektur-diagramm.png)
 
 ```mermaid
 flowchart LR
