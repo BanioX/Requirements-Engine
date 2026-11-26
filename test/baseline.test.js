@@ -53,3 +53,15 @@ test('iPhone / Mobile PWA Optimierung (Safe-Area, Standalone, kein Auto-Zoom)', 
   assert.equal(manifest.display, 'standalone');
   assert.equal(fs.existsSync(path.join(root, 'src', 'public', 'assets', 'apple-touch-icon.png')), true);
 });
+
+test('Impressum & Datenschutzerklärung (Self-Hosting, Proprietär, reaktive Kenntnisnahme) sind integriert', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'src', 'public', 'app.js'), 'utf8');
+  assert.match(html, /id="legal-modal"/);
+  assert.match(html, /id="btn-open-imprint"/);
+  assert.match(html, /id="btn-open-privacy"/);
+  assert.match(js, /weder einen produktiven Server noch eine Datenbank/);
+  assert.match(js, /ausdrücklichen schriftlichen Zustimmung/);
+  assert.match(js, /reaktiv/);
+  assert.match(js, /revDSG/);
+});

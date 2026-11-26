@@ -294,6 +294,22 @@
     </div>
   </div>
 
+  <!-- IMPRESSUM & DATENSCHUTZERKLÄRUNG (Self-Hosting, Proprietär, revDSG) -->
+  <div id="legal-modal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+    <div class="modal-card modal-wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="legal-modal-title" class="modal-title">Impressum</h2>
+          <p id="legal-modal-hint" class="modal-hint" style="margin:2px 0 0;">Onestrand | Alban Hyseni · Self-Hosting · Proprietäre Software</p>
+        </div>
+        <button type="button" id="btn-close-legal" class="icon-close-btn" aria-label="Schliessen">
+          <svg class="lucide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div id="legal-modal-body"></div>
+    </div>
+  </div>
+
   <footer class="ops-bar no-print" aria-label="Systemstatus">
     <div class="shell ops-inner">
       <span class="ops-item">
@@ -303,7 +319,11 @@
         <span id="ops-db">DB…</span>
       </span>
       <span class="ops-item" id="ops-counts">0 Einträge</span>
-      <span class="ops-item">
+      <span class="ops-item ops-legal-group">
+        <button type="button" class="ops-legal-link" id="btn-open-imprint">Impressum</button>
+        <span class="ops-sep-always">·</span>
+        <button type="button" class="ops-legal-link" id="btn-open-privacy">Datenschutz</button>
+        <span class="ops-sep">·</span>
         <span id="ops-version">–</span>
         <code id="ops-commit">–</code>
         <span class="ops-sep">·</span> <a href="/health" target="_blank" rel="noopener">/health</a>

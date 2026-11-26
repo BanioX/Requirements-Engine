@@ -1,6 +1,8 @@
 # Zielbild und Architektur (Teilaufgabe 1 — 5 Punkte)
 
-> **Status:** Abgeglichen 1:1 mit dem laufenden System (**ONESTRAND · Requirements Engine** — offizieller ATL-Betrieb lokal auf dem Laptop via `docker compose up -d` + Cloudflare Quick Tunnel, 0 CHF; identischer Stack läuft zusätzlich optional 24/7 auf Oracle Cloud Always Free unter `https://re.onestrand.ch`).
+> **Status:** Abgeglichen 1:1 mit dem laufenden System (**ONESTRAND · Requirements Engine** — offizieller ATL-Betrieb zu **0 CHF** lokal auf dem Laptop via `docker compose up -d` + Cloudflare Quick Tunnel).
+> **Hinweis zur eigenen Domain (`re.onestrand.ch`):** Weil der Autor das Produkt eventuell später im Betrieb weiter nutzen möchte, wurde es zusätzlich zu Demo-Zwecken auf einer Subdomain seiner **bereits unabhängig ausserhalb dieses Projekts bestehenden** kostenpflichtigen Domain `onestrand.ch` (auf einer kostenlosen Oracle-Cloud-Always-Free-VM) bereitgestellt. Diese Domain ist für die ATL und den Start durch Drittpersonen nicht erforderlich.
+> **Auslieferungskanäle:** Website (umgesetzt), Desktop-/iPhone-PWA (umgesetzt), Confluence-Anbindung (Grundlage `?embed=1` & Forge-Manifest umgesetzt, produktiver Betrieb geplant) sowie eigenständiges Windows-Programm `.exe` (geplant — Details siehe [Produkt- & Kanalplanung](PRODUKT_ROADMAP_KANAELE.md)).
 
 ## 1. Architekturdiagramm (`draw.io` Reinzeichnung + Mermaid-Quelle)
 
@@ -75,6 +77,6 @@ Die gesamte Laufzeitumgebung ist deklarativ in `docker-compose.yml` definiert:
 
 ### Weg einer Änderung (Deployment-Flow)
 1. Änderungen entstehen auf Feature-Branches und werden erst nach grünen Checks per Pull Request in `main` gemergt.
-2. Der Push auf `main` startet GitHub Actions: **25 automatisierte Tests (`npm test`)**, ein vollständiger **Secret-Scan über die gesamte Git-History (`gitleaks`)** und der **Multi-Arch-Docker-Build** (`linux/amd64` + `linux/arm64`) nach `ghcr.io`.
-3. Watchtower erkennt auf dem Ziel-Host innerhalb von 30 Sekunden das neue Image per Pull-Verfahren und startet ausschliesslich den `app`-Container neu — ohne Handarbeit, ohne Session-Verlust und ohne Datenverlust.
+2. Der Push auf `main` startet GitHub Actions: **27 automatisierte Tests (`npm test`)**, ein vollständiger **Secret-Scan über die gesamte Git-History (`gitleaks`)** und der **Multi-Arch-Docker-Build** (`linux/amd64` + `linux/arm64`) nach `ghcr.io`.
+3. Weil GitHub den Laptop hinter dem lokalen Router nicht direkt erreichen kann (kein Push von aussen), prüft Watchtower per **Pull-Prinzip** von innen nach aussen alle 30 Sekunden `ghcr.io` und startet bei einem neuen Image ausschliesslich den `app`-Container neu — ohne Handarbeit, ohne Session-Verlust und ohne Datenverlust.
 4. Der neue Git-Commit-Hash ist unmittelbar im Footer und unter `/health` nachweisbar.

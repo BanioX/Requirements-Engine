@@ -244,7 +244,11 @@ const I18N = {
     iosStep1: 'In Safari unten auf das Teilen-Symbol tippen.',
     iosStep2: 'Nach unten scrollen und «Zum Home-Bildschirm» wählen.',
     iosStep3: 'Oben rechts auf «Hinzufügen» tippen — fertig.',
-    iosInstallOk: 'Verstanden'
+    iosInstallOk: 'Verstanden',
+    imprint: 'Impressum',
+    privacy: 'Datenschutz',
+    privacyFull: 'Datenschutzerklärung',
+    legalHint: 'Onestrand | Alban Hyseni · Eigenbetrieb (Self-Hosting) · Proprietäre Software'
   },
   en: {
     search: 'Search',
@@ -460,7 +464,11 @@ const I18N = {
     iosStep1: 'Tap the Share icon at the bottom of Safari.',
     iosStep2: 'Scroll down and choose «Add to Home Screen».',
     iosStep3: 'Tap «Add» in the top-right corner — done.',
-    iosInstallOk: 'Got it'
+    iosInstallOk: 'Got it',
+    imprint: 'Imprint',
+    privacy: 'Privacy',
+    privacyFull: 'Privacy Policy',
+    legalHint: 'Onestrand | Alban Hyseni · Self-Hosted · Proprietary Software'
   }
 };
 
@@ -555,6 +563,7 @@ const state = {
   showAllMentions: false,
   mergeSourceId: null,
   rolesTab: 'matrix', // 'matrix' | 'audit'
+  legalTab: 'imprint', // 'imprint' | 'privacy'
   allStoriesCache: [],
   effortId: null,
   effortChannel: '',
@@ -1155,6 +1164,123 @@ function closeRolesModal() {
   document.getElementById('roles-modal')?.classList.add('hidden');
 }
 
+function openLegalModal(tab = state.legalTab || 'imprint') {
+  state.legalTab = tab === 'privacy' ? 'privacy' : 'imprint';
+  const modal = document.getElementById('legal-modal');
+  const titleEl = document.getElementById('legal-modal-title');
+  const hintEl = document.getElementById('legal-modal-hint');
+  const bodyEl = document.getElementById('legal-modal-body');
+  if (!modal || !bodyEl) return;
+
+  if (titleEl) titleEl.textContent = state.legalTab === 'privacy' ? t('privacyFull') : t('imprint');
+  if (hintEl) hintEl.textContent = t('legalHint');
+
+  const tabsHtml = `
+    <div class="auth-tabs" style="margin-bottom:14px;">
+      <button type="button" class="auth-tab js-legal-tab ${state.legalTab === 'imprint' ? 'active' : ''}" data-ltab="imprint">${esc(t('imprint'))}</button>
+      <button type="button" class="auth-tab js-legal-tab ${state.legalTab === 'privacy' ? 'active' : ''}" data-ltab="privacy">${esc(t('privacyFull'))}</button>
+    </div>
+  `;
+
+  const isEn = state.lang === 'en';
+  const imprintHtml = isEn
+    ? `
+      <div class="legal-content">
+        <div class="legal-section">
+          <h3>Provider &amp; Copyright Holder</h3>
+          <p><strong>Onestrand | Alban Hyseni</strong><br />8604 Volketswil, Switzerland<br />Website: <a href="https://onestrand.ch" target="_blank" rel="noopener">https://onestrand.ch</a></p>
+        </div>
+        <div class="legal-section">
+          <h3>Proprietary Software &amp; Mandatory Prior Consent</h3>
+          <p><strong>Copyright &copy; 2026 Onestrand | Alban Hyseni. All rights reserved.</strong></p>
+          <p>This software («ONESTRAND · Requirements Engine») is strictly proprietary. Any operational, commercial, or other use, reproduction, modification, or distribution requires prior express written consent from Onestrand | Alban Hyseni.</p>
+          <p><strong>Reactive Knowledge Only:</strong> Prospective users become aware of and obtain access to this product exclusively on a reactive basis (upon their own inquiry or direct authorization). No public offer or unsolicited distribution is made.</p>
+        </div>
+        <div class="legal-section">
+          <h3>Self-Hosted Operating Model (No Server or Database Provided)</h3>
+          <p>The provider does <strong>not</strong> supply any production server, cloud hosting, or central database. Authorized organizations and users operate the software solely under their own responsibility on their own server and infrastructure (Self-Hosting).</p>
+          <p>Any temporary demo instance (such as <code>re.onestrand.ch</code>) is provided exclusively for non-binding demonstration or academic evaluation with anonymized sample data, without production warranty.</p>
+        </div>
+      </div>
+    `
+    : `
+      <div class="legal-content">
+        <div class="legal-section">
+          <h3>Anbieter &amp; Rechteinhaber</h3>
+          <p><strong>Onestrand | Alban Hyseni</strong><br />8604 Volketswil, Schweiz<br />Website: <a href="https://onestrand.ch" target="_blank" rel="noopener">https://onestrand.ch</a></p>
+        </div>
+        <div class="legal-section">
+          <h3>Proprietäre Software &amp; Zustimmungspflicht</h3>
+          <p><strong>Copyright &copy; 2026 Onestrand | Alban Hyseni. Alle Rechte vorbehalten.</strong></p>
+          <p>Diese Software («ONESTRAND · Requirements Engine») ist proprietär. Jede geschäftliche, betriebliche oder sonstige Nutzung, Vervielfältigung, Veränderung oder Weitergabe bedarf vorgängig der ausdrücklichen schriftlichen Zustimmung von Onestrand | Alban Hyseni.</p>
+          <p><strong>Ausschliesslich reaktive Kenntnisnahme:</strong> Nutzende erhalten ausschliesslich reaktiv (auf eigene Anfrage, individuelle Vorführung oder direkte Freigabe) Kenntnis von der Existenz dieses Produkts. Es erfolgt kein öffentliches Nutzungsangebot und keine unaufgeforderte Verbreitung.</p>
+        </div>
+        <div class="legal-section">
+          <h3>Betriebsmodell — Eigenbetrieb (kein Server, keine Datenbank)</h3>
+          <p>Ich als Anbieter dieses Produkts stelle <strong>weder einen produktiven Server noch eine Datenbank</strong> zur Verfügung. Berechtigte Nutzende und Organisationen betreiben die Software ausschliesslich eigenverantwortlich auf ihrem eigenen Server bzw. ihrer eigenen Infrastruktur (Self-Hosting).</p>
+          <p>Sofern unter <code>re.onestrand.ch</code> eine temporäre Demo-Instanz für Vorführ- oder Prüfungszwecke erreichbar ist, dient diese ausschliesslich unverbindlichen Tests mit anonymisierten Beispieldaten (kein Produktivbetrieb).</p>
+        </div>
+      </div>
+    `;
+
+  const privacyHtml = isEn
+    ? `
+      <div class="legal-content">
+        <div class="legal-section">
+          <h3>No Central Hosting — Zero Data Access by the Provider</h3>
+          <p>Onestrand | Alban Hyseni does not operate any production server or central database for user instances and receives <strong>no access whatsoever</strong> to data, accounts, feedback entries, or logs processed within a self-hosted installation.</p>
+        </div>
+        <div class="legal-section">
+          <h3>Data Controller (Swiss FADP / GDPR)</h3>
+          <p>The sole data controller under the Swiss Federal Act on Data Protection (revDSG / FADP) and, where applicable, the GDPR is the respective operator hosting the software on its own server. Requests for access, rectification, or deletion must be directed to the internal administrator of that instance.</p>
+        </div>
+        <div class="legal-section">
+          <h3>Data Processed Within Your Own Instance</h3>
+          <ul>
+            <li><strong>User accounts:</strong> Username, display name, assigned role, and a salted <code>scrypt</code> password hash (never plaintext).</li>
+            <li><strong>Operational records:</strong> Requirements, individual case logs, time durations, Q&amp;A threads, relevance votes, notification alerts, and the audit log stored exclusively in the operator’s own PostgreSQL database.</li>
+            <li><strong>Strictly necessary cookies &amp; local storage:</strong> One signed <code>HttpOnly</code> session cookie (<code>SameSite=Lax</code>) for login plus browser language preference. No analytics, advertising, or third-party tracking cookies are used.</li>
+          </ul>
+        </div>
+        <div class="legal-section">
+          <h3>Demo Instances</h3>
+          <p>If you access a demonstration instance (e.g. <code>re.onestrand.ch</code>), please enter exclusively fictitious, anonymized sample data and never personal or confidential business data.</p>
+        </div>
+      </div>
+    `
+    : `
+      <div class="legal-content">
+        <div class="legal-section">
+          <h3>Grundsatz — Kein Server, keine Datenbank, kein Datenzugriff</h3>
+          <p>Onestrand | Alban Hyseni stellt keinen produktiven Server und keine Datenbank zur Verfügung und erhält zu keinem Zeitpunkt Zugriff auf Daten, Benutzerkonten, Einträge oder Protokolle, die in einer selbst gehosteten Instanz der Requirements Engine verarbeitet werden.</p>
+        </div>
+        <div class="legal-section">
+          <h3>Verantwortliche Stelle gemäss Schweizer Datenschutzgesetz (revDSG)</h3>
+          <p>Verantwortlich für die Datenbearbeitung ist ausschliesslich der jeweilige <strong>Betreiber der eigenen Instanz</strong> (Organisation oder Person, welche Container und PostgreSQL-Datenbank auf dem eigenen Server betreibt). Begehren auf Auskunft, Berichtigung oder Löschung richten sich an die interne Administration der jeweiligen Instanz.</p>
+        </div>
+        <div class="legal-section">
+          <h3>In der eigenen Instanz verarbeitete Daten</h3>
+          <ul>
+            <li><strong>Benutzerkonten:</strong> Benutzername, Anzeigename, zugewiesene Rolle sowie ein mit <code>scrypt</code> und individuellem Salt gehashtes Passwort (keine Speicherung im Klartext).</li>
+            <li><strong>Fach- und Protokolldaten:</strong> Erfasste Ideen, Einzelfälle, Zeitangaben, Rückfragen, Relevanz-Stimmen, Benachrichtigungs-Abos und das Audit-Protokoll — ausschliesslich in der eigenen PostgreSQL-Datenbank des Betreibers.</li>
+            <li><strong>Technisch notwendiges Cookie &amp; lokale Einstellung:</strong> Ein signiertes <code>HttpOnly</code>-Session-Cookie (<code>SameSite=Lax</code>) für die Anmeldung sowie die gewählte Sprache im Browser. Es werden <strong>keine</strong> Tracking-, Analyse- oder Werbe-Cookies und keine externen Skripte eingesetzt.</li>
+          </ul>
+        </div>
+        <div class="legal-section">
+          <h3>Hinweis zu Demo-Instanzen</h3>
+          <p>Bei der Nutzung einer temporären Demo-Instanz (z. B. <code>re.onestrand.ch</code> zu Vorführ- oder Prüfungszwecken) dürfen ausschliesslich fiktive, anonymisierte Beispieldaten und keine realen Personen- oder vertraulichen Geschäftsdaten erfasst werden.</p>
+        </div>
+      </div>
+    `;
+
+  bodyEl.innerHTML = `${tabsHtml}${state.legalTab === 'privacy' ? privacyHtml : imprintHtml}`;
+  modal.classList.remove('hidden');
+}
+
+function closeLegalModal() {
+  document.getElementById('legal-modal')?.classList.add('hidden');
+}
+
 function openAuthModal(mode = 'login', customHint = '') {
   state.authMode = mode;
   const modal = document.getElementById('auth-modal');
@@ -1354,6 +1480,13 @@ function applyLanguageToStaticUi() {
     if (nIn) nIn.placeholder = t('authorPlaceholder');
     if (uIn) uIn.placeholder = t('username');
     if (pIn) pIn.placeholder = t('password');
+  }
+  const impBtn = document.getElementById('btn-open-imprint');
+  if (impBtn) impBtn.textContent = t('imprint');
+  const privBtn = document.getElementById('btn-open-privacy');
+  if (privBtn) privBtn.textContent = t('privacy');
+  if (!document.getElementById('legal-modal')?.classList.contains('hidden')) {
+    openLegalModal(state.legalTab);
   }
 }
 
@@ -2548,6 +2681,20 @@ function init() {
     }
   });
 
+  document.getElementById('btn-open-imprint')?.addEventListener('click', () => openLegalModal('imprint'));
+  document.getElementById('btn-open-privacy')?.addEventListener('click', () => openLegalModal('privacy'));
+  document.getElementById('btn-close-legal')?.addEventListener('click', closeLegalModal);
+  document.getElementById('legal-modal')?.addEventListener('click', (ev) => {
+    if (ev.target.id === 'legal-modal') {
+      closeLegalModal();
+      return;
+    }
+    const lTab = ev.target.closest('.js-legal-tab');
+    if (lTab) {
+      openLegalModal(lTab.dataset.ltab);
+    }
+  });
+
   document.getElementById('btn-close-auth').addEventListener('click', closeAuthModal);
   document.getElementById('auth-modal').addEventListener('click', (ev) => {
     if (ev.target.id === 'auth-modal') closeAuthModal();
@@ -2556,6 +2703,7 @@ function init() {
     if (ev.key === 'Escape') {
       closeAuthModal();
       closeRolesModal();
+      closeLegalModal();
     }
   });
 
