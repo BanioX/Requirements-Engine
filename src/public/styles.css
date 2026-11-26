@@ -394,6 +394,59 @@ body {
   animation: popIn 0.2s var(--ease);
 }
 
+.modal-wide {
+  max-width: 680px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-bottom: 18px;
+}
+
+.matrix-table th,
+.matrix-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+  color: var(--silver-2);
+}
+
+.matrix-table th:first-child,
+.matrix-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.matrix-table th {
+  font-size: 0.69rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--silver-3);
+}
+
+.user-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--bg);
+}
+
 .modal-head {
   display: flex;
   align-items: center;

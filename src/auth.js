@@ -9,6 +9,55 @@ import crypto from 'node:crypto';
 const SESSION_COOKIE = 'os_session';
 const SESSION_TTL_SEC = 7 * 24 * 60 * 60; // 7 Tage
 
+export const VALID_ROLES = ['user', 'supervisor', 'manager', 'admin'];
+
+export const ROLE_LABELS = {
+  user: 'Nutzer',
+  supervisor: 'Supervisor',
+  manager: 'Manager',
+  admin: 'Admin'
+};
+
+export const ROLE_PERMISSIONS = {
+  user: {
+    captureFeedback: true,
+    seeAllComments: false,
+    decideStories: false,
+    viewReports: false,
+    manageUsers: false
+  },
+  supervisor: {
+    captureFeedback: true,
+    seeAllComments: true,
+    decideStories: true,
+    viewReports: false,
+    manageUsers: false
+  },
+  manager: {
+    captureFeedback: true,
+    seeAllComments: true,
+    decideStories: true,
+    viewReports: true,
+    manageUsers: false
+  },
+  admin: {
+    captureFeedback: true,
+    seeAllComments: true,
+    decideStories: true,
+    viewReports: true,
+    manageUsers: true
+  }
+};
+
+export function normalizeRole(role) {
+  return VALID_ROLES.includes(role) ? role : 'user';
+}
+
+export function hasPermission(role, permission) {
+  const r = normalizeRole(role);
+  return Boolean(ROLE_PERMISSIONS[r]?.[permission]);
+}
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = crypto.scryptSync(String(password), salt, 64).toString('hex');
@@ -59,7 +108,7 @@ export function verifySessionToken(token, secret) {
       id: parsed.uid,
       username: parsed.u,
       displayName: parsed.n,
-      role: parsed.r === 'admin' ? 'admin' : 'user'
+      role: normalizeRole(parsed.r)
     };
   } catch {
     return null;

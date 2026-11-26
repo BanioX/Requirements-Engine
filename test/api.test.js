@@ -46,10 +46,21 @@ function createMockStore({ dbHealthy = true } = {}) {
         username,
         display_name: displayName,
         role,
-        password_hash: passwordHash
+        password_hash: passwordHash,
+        created_at: new Date().toISOString()
       };
       users.push(u);
       return u;
+    },
+    async listUsers() {
+      return users.map(({ password_hash: _omit, ...rest }) => rest);
+    },
+    async updateUserRole(id, role) {
+      const u = users.find((x) => x.id === id);
+      if (!u) return null;
+      u.role = role;
+      const { password_hash: _omit, ...rest } = u;
+      return rest;
     },
     async checkHealth() {
       if (!dbHealthy) throw new Error('DB connection refused');
@@ -453,9 +464,33 @@ test('Auth & Rollen: Erster Account wird Admin (Chef), zweiter Nutzer hat keinen
     const deniedCsv = await fetch(`${baseUrl}/api/stories/export/csv`, { headers: { cookie: userCookie } });
     assert.equal(deniedCsv.status, 403);
 
-    // 4. Admin (Chef) hat vollen Zugriff (HTTP 200)
+    // 4. Admin (Chef) hat vollen Zugriff (HTTP 200) und kann mehrere Manager/Supervisoren ernennen
     const okRep = await fetch(`${baseUrl}/api/report`, { headers: { cookie: adminCookie } });
     assert.equal(okRep.status, 200);
+
+    // Letzten Admin darf man nicht selbst herabstufen (HTTP 400)
+    const demoteLast = await fetch(`${baseUrl}/api/users/1/role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ role: 'user' })
+    });
+    assert.equal(demoteLast.status, 400);
+
+    // Admin befördert Nutzer #2 zum Manager -> danach darf #2 Report sehen, aber KEINE Benutzer verwalten
+    const promoteMgr = await fetch(`${baseUrl}/api/users/2/role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ role: 'manager' })
+    });
+    assert.equal(promoteMgr.status, 200);
+    const loginMgr = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'mitarbeiter', password: 'secret-password-2' })
+    });
+    const mgrCookie = loginMgr.headers.get('set-cookie').split(';')[0];
+    assert.equal((await fetch(`${baseUrl}/api/report`, { headers: { cookie: mgrCookie } })).status, 200);
+    assert.equal((await fetch(`${baseUrl}/api/users`, { headers: { cookie: mgrCookie } })).status, 403);
   });
 });
 

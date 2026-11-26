@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { calculateTrafficLight } from './engine/exporters.js';
-import { hashPassword } from './auth.js';
+import { hashPassword, normalizeRole } from './auth.js';
 
 const { Pool } = pg;
 
@@ -206,7 +206,7 @@ export function createPostgresStore(pool) {
 
     async createUser({ username, displayName, role = 'user', passwordHash }) {
       const cleanUser = String(username || '').trim().toLowerCase();
-      const safeRole = role === 'admin' ? 'admin' : 'user';
+      const safeRole = normalizeRole(role);
       const res = await pool.query(
         `INSERT INTO users (username, display_name, role, password_hash)
          VALUES ($1, $2, $3, $4)
@@ -214,6 +214,22 @@ export function createPostgresStore(pool) {
         [cleanUser, String(displayName || cleanUser).trim().slice(0, 80), safeRole, passwordHash]
       );
       return res.rows[0];
+    },
+
+    async listUsers() {
+      const res = await pool.query(
+        `SELECT id, username, display_name, role, created_at FROM users ORDER BY id ASC`
+      );
+      return res.rows;
+    },
+
+    async updateUserRole(id, role) {
+      const safeRole = normalizeRole(role);
+      const res = await pool.query(
+        `UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, display_name, role, created_at`,
+        [safeRole, id]
+      );
+      return res.rowCount > 0 ? res.rows[0] : null;
     },
 
     async checkHealth() {

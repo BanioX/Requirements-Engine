@@ -10,11 +10,16 @@ import {
 } from './engine/exporters.js';
 import { pushStoryToJira, storiesToJiraCsv } from './engine/jiraBridge.js';
 import {
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
   SESSION_COOKIE,
+  VALID_ROLES,
   buildClearSessionCookie,
   buildSessionCookie,
   createSessionSecret,
+  hasPermission,
   hashPassword,
+  normalizeRole,
   parseCookies,
   signSessionToken,
   verifyPassword,
@@ -101,9 +106,9 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       .slice(0, 64);
   }
 
-  async function isManagerRequest(req) {
+  async function canSeeAllComments(req) {
     const user = getSessionUser(req);
-    if (user && user.role === 'admin') return true;
+    if (user && hasPermission(user.role, 'seeAllComments')) return true;
     if (configuredManagerPin) {
       const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
       if (provided === configuredManagerPin) return true;
@@ -115,17 +120,33 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     return false;
   }
 
-  async function requireManagerAccess(req, res, next) {
+  async function requireReportAccess(req, res, next) {
     try {
       const user = getSessionUser(req);
-      if (user && user.role === 'admin') return next();
+      if (user && hasPermission(user.role, 'viewReports')) return next();
       if (configuredManagerPin) {
         const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
         if (provided === configuredManagerPin) return next();
       }
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
       if (adminCount === 0 && !configuredManagerPin) return next();
-      return res.status(403).json({ error: 'Nur für Admin / Manager freigegeben. Bitte anmelden.' });
+      return res.status(403).json({ error: 'Report & Excel-Export sind nur für Manager und Admins freigegeben.' });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
+  async function requireAdminAccess(req, res, next) {
+    try {
+      const user = getSessionUser(req);
+      if (user && hasPermission(user.role, 'manageUsers')) return next();
+      if (configuredManagerPin) {
+        const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+        if (provided === configuredManagerPin) return next();
+      }
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      if (adminCount === 0 && !configuredManagerPin) return next();
+      return res.status(403).json({ error: 'Diese Einstellung ist nur für Admins freigegeben.' });
     } catch (err) {
       return next(err);
     }
@@ -261,13 +282,15 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Authentifizierung (Profil / Login-Maske — Admin vs. Nutzer)
+  // Authentifizierung & Rechtematrix (Nutzer, Supervisor, Manager, Admin)
   app.get('/api/auth/me', async (req, res, next) => {
     try {
       const user = getSessionUser(req);
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
       res.json({
         user,
+        permissions: user ? ROLE_PERMISSIONS[normalizeRole(user.role)] : null,
+        roles: VALID_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r], permissions: ROLE_PERMISSIONS[r] })),
         hasAdmin: adminCount > 0,
         managerPinRequired: Boolean(configuredManagerPin)
       });
@@ -297,11 +320,11 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         return res.status(409).json({ error: 'Dieser Benutzername ist bereits vergeben.' });
       }
 
-      // Erster Account im System wird automatisch Admin (Chef), alle weiteren starten als Nutzer
+      // Erster Account im System wird automatisch Admin, alle weiteren starten als Nutzer (oder frei durch Admin)
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
       const currentUser = getSessionUser(req);
-      const requestedRole = req.body?.role === 'admin' ? 'admin' : 'user';
-      const role = adminCount === 0 ? 'admin' : currentUser?.role === 'admin' ? requestedRole : 'user';
+      const requestedRole = normalizeRole(req.body?.role);
+      const role = adminCount === 0 ? 'admin' : currentUser && hasPermission(currentUser.role, 'manageUsers') ? requestedRole : 'user';
 
       const created = await store.createUser({
         username,
@@ -343,7 +366,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         id: user.id,
         username: user.username,
         displayName: user.display_name,
-        role: user.role === 'admin' ? 'admin' : 'user'
+        role: normalizeRole(user.role)
       };
       const token = signSessionToken(sessionUser, signingSecret);
       const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
@@ -359,7 +382,49 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     res.json({ ok: true });
   });
 
-  // Betriebs-Einstellungen (Kommentar-Sichtbarkeit: 'all' vs. 'own_only' — durch Chef umschaltbar)
+  // Benutzer- & Rechteverwaltung (nur Admin)
+  app.get('/api/users', requireAdminAccess, async (_req, res, next) => {
+    try {
+      const users = store.listUsers ? await store.listUsers() : [];
+      res.json({
+        users,
+        roles: VALID_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r], permissions: ROLE_PERMISSIONS[r] }))
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.patch('/api/users/:id/role', requireAdminAccess, async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige Benutzer-ID.' });
+      const nextRole = req.body?.role;
+      if (!VALID_ROLES.includes(nextRole)) {
+        return res.status(400).json({ error: 'Ungültige Rolle (user, supervisor, manager, admin).' });
+      }
+      if (!store.listUsers || !store.updateUserRole) {
+        return res.status(501).json({ error: 'Benutzerverwaltung nicht verfügbar.' });
+      }
+      const allUsers = await store.listUsers();
+      const target = allUsers.find((u) => u.id === id);
+      if (!target) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+
+      if (target.role === 'admin' && nextRole !== 'admin') {
+        const remainingAdmins = allUsers.filter((u) => u.role === 'admin' && u.id !== id).length;
+        if (remainingAdmins === 0) {
+          return res.status(400).json({ error: 'Mindestens ein Admin muss bestehen bleiben.' });
+        }
+      }
+
+      const updated = await store.updateUserRole(id, nextRole);
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Betriebs-Einstellungen (Kommentar-Sichtbarkeit: 'all' vs. 'own_only' — durch Admin/Chef umschaltbar)
   app.get('/api/settings', async (_req, res, next) => {
     try {
       const [commentsVisibility, adminCount] = await Promise.all([
@@ -376,7 +441,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  app.patch('/api/settings', requireManagerAccess, async (req, res, next) => {
+  app.patch('/api/settings', requireAdminAccess, async (req, res, next) => {
     try {
       const { commentsVisibility } = req.body || {};
       if (!['all', 'own_only'].includes(commentsVisibility)) {
@@ -394,7 +459,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   // Stories auflisten (filtert Entscheid-Kommentare wenn Chef 'own_only' aktiviert hat)
   app.get('/api/stories', async (req, res, next) => {
     try {
-      const [stories, visibility, manager] = await Promise.all([
+      const [stories, visibility, privileged] = await Promise.all([
         store.listStories({
           status: req.query.status,
           moscow: req.query.moscow,
@@ -402,14 +467,14 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
           sort: req.query.sort
         }),
         getCommentsVisibility(),
-        isManagerRequest(req)
+        canSeeAllComments(req)
       ]);
       const token = getClientToken(req);
 
       const sanitized = stories.map((s) => {
         const list = Array.isArray(s.decision_feedback_json) ? s.decision_feedback_json : [];
         const visibleList =
-          visibility === 'own_only' && !manager
+          visibility === 'own_only' && !privileged
             ? list.filter((c) => c.clientToken && c.clientToken === token)
             : list;
         return {
@@ -423,8 +488,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // CSV-Export für Excel (nur Manager, unterstützt alle Report-Filter)
-  app.get('/api/stories/export/csv', requireManagerAccess, async (req, res, next) => {
+  // CSV-Export für Excel (nur Manager & Admin, unterstützt alle Report-Filter)
+  app.get('/api/stories/export/csv', requireReportAccess, async (req, res, next) => {
     try {
       const hasReportFilters = req.query.from || req.query.to || req.query.status || req.query.feasibility;
       const stories =
@@ -447,8 +512,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Management-Report API (nur Manager; Zeitraum 01.01.XXXX - 31.12.XXXX, echte Zeiten & Einsparung)
-  app.get('/api/report', requireManagerAccess, async (req, res, next) => {
+  // Management-Report API (nur Manager & Admin; Zeitraum 01.01.XXXX - 31.12.XXXX, echte Zeiten & Einsparung)
+  app.get('/api/report', requireReportAccess, async (req, res, next) => {
     try {
       const isoDate = /^\d{4}-\d{2}-\d{2}$/;
       const from = isoDate.test(String(req.query.from || '')) ? String(req.query.from) : null;
@@ -722,15 +787,15 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const current = await store.getStoryById(id);
       if (!current) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
-      const [allMentions, visibility, manager] = await Promise.all([
+      const [allMentions, visibility, privileged] = await Promise.all([
         store.listStoryMentions ? store.listStoryMentions(id, req.query.limit) : [],
         getCommentsVisibility(),
-        isManagerRequest(req)
+        canSeeAllComments(req)
       ]);
       const token = getClientToken(req);
 
       const visible =
-        visibility === 'own_only' && !manager
+        visibility === 'own_only' && !privileged
           ? allMentions.filter((m) => m.client_token && m.client_token === token)
           : allMentions;
 

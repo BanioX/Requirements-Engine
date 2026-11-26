@@ -22,7 +22,17 @@ const LUCIDE = {
   barChart: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
   arrowUpRight: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>',
   trash: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
-  copy: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
+  copy: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
+  users: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  check: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+  minus: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>'
+};
+
+const ROLE_NAMES = {
+  user: 'Nutzer',
+  supervisor: 'Supervisor',
+  manager: 'Manager',
+  admin: 'Admin'
 };
 
 const state = {
@@ -359,6 +369,14 @@ function isAdminUser() {
   return state.user?.role === 'admin';
 }
 
+function canViewReports() {
+  return ['admin', 'manager'].includes(state.user?.role) || !state.hasAdmin;
+}
+
+function canSeeAllCommentsUi() {
+  return ['admin', 'manager', 'supervisor'].includes(state.user?.role);
+}
+
 function renderAuthState() {
   const profBtn = document.getElementById('btn-profile');
   const profIcon = document.getElementById('profile-icon');
@@ -366,33 +384,41 @@ function renderAuthState() {
   const repBtn = document.getElementById('btn-toggle-report');
   const pop = document.getElementById('profile-popover');
 
-  const canSeeReport = isAdminUser() || !state.hasAdmin;
-  repBtn?.classList.toggle('hidden', !canSeeReport);
-  if (!canSeeReport && state.view === 'report') {
+  const allowRep = canViewReports();
+  repBtn?.classList.toggle('hidden', !allowRep);
+  document.getElementById('rep-vis-pills')?.classList.toggle('hidden', !isAdminUser() && state.hasAdmin);
+  if (!allowRep && state.view === 'report') {
     setView('board');
   }
 
   if (state.user) {
-    profBtn.classList.toggle('is-admin', isAdminUser());
-    profBtn.classList.toggle('is-user', !isAdminUser());
-    profIcon.outerHTML = isAdminUser()
+    const elevated = canSeeAllCommentsUi();
+    const roleLabel = ROLE_NAMES[state.user.role] || 'Nutzer';
+    profBtn.classList.toggle('is-admin', elevated);
+    profBtn.classList.toggle('is-user', !elevated);
+    profIcon.outerHTML = elevated
       ? LUCIDE.shieldCheck.replace('<svg ', '<svg id="profile-icon" ')
       : LUCIDE.user.replace('<svg ', '<svg id="profile-icon" ');
     profLabel.textContent = state.user.displayName || state.user.username;
     profLabel.classList.remove('hidden');
-    profBtn.title = `${state.user.displayName} (${isAdminUser() ? 'Admin / Chef' : 'Nutzer'})`;
+    profBtn.title = `${state.user.displayName} (${roleLabel})`;
 
     pop.innerHTML = `
       <div class="pop-user-head">
         <span class="pop-user-name">${esc(state.user.displayName)}</span>
         <span class="pop-user-sub">
           <span>@${esc(state.user.username)}</span>
-          <span class="tag-mini ${isAdminUser() ? 'tag-blue' : ''}">${isAdminUser() ? 'Admin' : 'Nutzer'}</span>
+          <span class="tag-mini ${elevated ? 'tag-blue' : ''}">${esc(roleLabel)}</span>
         </span>
       </div>
       ${
-        isAdminUser()
+        canViewReports()
           ? `<button type="button" class="pop-action" id="pop-open-report">${LUCIDE.barChart}<span>Manager-Report</span></button>`
+          : ''
+      }
+      ${
+        isAdminUser()
+          ? `<button type="button" class="pop-action" id="pop-open-roles">${LUCIDE.users}<span>Rechte &amp; Benutzer</span></button>`
           : ''
       }
       <button type="button" class="pop-action danger" id="pop-logout">${LUCIDE.logOut}<span>Abmelden</span></button>
@@ -405,6 +431,78 @@ function renderAuthState() {
     profBtn.title = 'Anmelden / Profil';
     pop.classList.add('hidden');
   }
+}
+
+async function openRolesModal() {
+  const modal = document.getElementById('roles-modal');
+  const body = document.getElementById('roles-modal-body');
+  modal.classList.remove('hidden');
+  body.innerHTML = '<div style="padding:16px; color:var(--silver-3);">Lade Rechtematrix…</div>';
+
+  try {
+    const data = await api('/api/users');
+    const matrixRows = data.roles
+      .map((r) => {
+        const p = r.permissions;
+        return `
+          <tr>
+            <td>${esc(r.label)}</td>
+            <td>${p.captureFeedback ? LUCIDE.check : LUCIDE.minus}</td>
+            <td>${p.seeAllComments ? LUCIDE.check : '<span style="font-size:0.7rem; color:var(--silver-3);">Opt.</span>'}</td>
+            <td>${p.decideStories ? LUCIDE.check : LUCIDE.minus}</td>
+            <td>${p.viewReports ? LUCIDE.check : LUCIDE.minus}</td>
+            <td>${p.manageUsers ? LUCIDE.check : LUCIDE.minus}</td>
+          </tr>
+        `;
+      })
+      .join('');
+
+    const userRows = data.users
+      .map(
+        (u) => `
+        <div class="user-role-row">
+          <div>
+            <strong style="font-size:0.84rem; color:var(--ink);">${esc(u.display_name || u.username)}</strong>
+            <div style="font-size:0.73rem; color:var(--silver-3);">@${esc(u.username)}</div>
+          </div>
+          <div class="channel-group" role="group" aria-label="Rolle für ${esc(u.username)}">
+            ${data.roles
+              .map(
+                (r) =>
+                  `<button type="button" class="ch-btn js-set-role ${u.role === r.id ? 'active' : ''}" data-uid="${u.id}" data-role="${r.id}">${esc(r.label)}</button>`
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+      )
+      .join('');
+
+    body.innerHTML = `
+      <div class="drawer-label">Rechtematrix</div>
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>Rolle</th>
+            <th>Erfassen</th>
+            <th>Alle Komm.</th>
+            <th>Entscheide</th>
+            <th>Report / Excel</th>
+            <th>Rechte</th>
+          </tr>
+        </thead>
+        <tbody>${matrixRows}</tbody>
+      </table>
+      <div class="drawer-label">Registrierte Benutzer (${data.users.length})</div>
+      <div class="user-role-list">${userRows || '<div style="font-size:0.8rem; color:var(--silver-3);">Keine Konten vorhanden.</div>'}</div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div class="auth-error">${esc(err.message)}</div>`;
+  }
+}
+
+function closeRolesModal() {
+  document.getElementById('roles-modal')?.classList.add('hidden');
 }
 
 function openAuthModal(mode = 'login', customHint = '') {
@@ -717,7 +815,7 @@ async function loadIdeas() {
           <div class="tiles-section">
             <div class="tiles-head">
               <div class="drawer-label" style="margin:0;">
-                ${state.commentsVisibility === 'own_only' && !isAdminUser() ? `Eigene Feedbacks (${mentionsList.length})` : `Feedbacks & Logs (${mentionsList.length})`}
+                ${state.commentsVisibility === 'own_only' && !canSeeAllCommentsUi() ? `Eigene Feedbacks (${mentionsList.length})` : `Feedbacks & Logs (${mentionsList.length})`}
               </div>
               ${
                 mentionsList.length > 12
@@ -1381,6 +1479,11 @@ function init() {
       setView('report');
       return;
     }
+    if (ev.target.closest('#pop-open-roles')) {
+      document.getElementById('profile-popover').classList.add('hidden');
+      openRolesModal();
+      return;
+    }
     if (ev.target.closest('#pop-logout')) {
       await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
       state.user = null;
@@ -1390,6 +1493,27 @@ function init() {
       renderAuthState();
       showToast('Abgemeldet.');
       await loadIdeas();
+    }
+  });
+
+  document.getElementById('btn-close-roles').addEventListener('click', closeRolesModal);
+  document.getElementById('roles-modal').addEventListener('click', async (ev) => {
+    if (ev.target.id === 'roles-modal') {
+      closeRolesModal();
+      return;
+    }
+    const roleBtn = ev.target.closest('.js-set-role');
+    if (roleBtn) {
+      try {
+        await api(`/api/users/${roleBtn.dataset.uid}/role`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role: roleBtn.dataset.role })
+        });
+        showToast(`Rolle auf ${ROLE_NAMES[roleBtn.dataset.role] || roleBtn.dataset.role} gesetzt.`);
+        await openRolesModal();
+      } catch (err) {
+        showToast(err.message);
+      }
     }
   });
 
@@ -1404,7 +1528,10 @@ function init() {
     if (ev.target.id === 'auth-modal') closeAuthModal();
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') closeAuthModal();
+    if (ev.key === 'Escape') {
+      closeAuthModal();
+      closeRolesModal();
+    }
   });
 
   document.querySelectorAll('.auth-tab').forEach((tab) => {
