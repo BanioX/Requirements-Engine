@@ -2,7 +2,9 @@
   "name": "requirements-engine",
   "version": "1.0.0",
   "private": true,
-  "description": "Requirements Engine — KMU-Portal für Feedback-zu-User-Stories, Klick-Anleitungen, Aktualitäts-Wächter & Entscheid-Log",
+  "license": "UNLICENSED",
+  "author": "Onestrand | Alban Hyseni",
+  "description": "ONESTRAND · Requirements Engine — Interne Plattform für strukturiertes Feedback, Priorisierung, 5-Rollen-Workflow & Management-Reporting",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
