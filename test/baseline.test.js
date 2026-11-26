@@ -40,3 +40,16 @@ test('Minimalistisches UI (Jakob Nielsen & RE-Lehrbuch): keine Dropdowns, keine 
   assert.doesNotMatch(html, /class="ch-btn active"/);
   assert.doesNotMatch(js, /js-jira/);
 });
+
+test('iPhone / Mobile PWA Optimierung (Safe-Area, Standalone, kein Auto-Zoom)', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'public', 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src', 'public', 'styles.css'), 'utf8');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'src', 'public', 'site.webmanifest'), 'utf8'));
+  assert.match(html, /viewport-fit=cover/);
+  assert.match(html, /apple-mobile-web-app-capable/);
+  assert.match(html, /apple-touch-icon/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.match(css, /env\(safe-area-inset-top\)/);
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(fs.existsSync(path.join(root, 'src', 'public', 'assets', 'apple-touch-icon.png')), true);
+});
