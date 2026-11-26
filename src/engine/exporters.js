@@ -126,11 +126,12 @@ function formatSecondsMMSS(totalSec) {
 }
 
 const VALUE_LABELS_DE = {
-  zeitersparnis: 'Zeitersparnis',
-  kundenaufwand: 'Weniger Kundenaufwand',
-  erklaerung: 'Weniger Erklärungen',
-  fehler: 'Weniger Fehler',
-  umsatz: 'Umsatz / Bindung'
+  zeitersparnis: 'Effizienz',
+  kundenaufwand: 'Kundenerlebnis',
+  erklaerung: 'Klarheit',
+  fehler: 'Qualität',
+  umsatz: 'Umsatz',
+  bindung: 'Kundenbindung'
 };
 
 export function storiesToCsv(stories = []) {

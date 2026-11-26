@@ -69,6 +69,6 @@ test('Markdown- und CSV-Export enthalten zentrale Story-Felder', () => {
   );
   assert.match(
     csv,
-    /REQ-5;;;3;9;09:00;03:00;unbewertet;;;TWINT-Limit vereinfachen;Zeitersparnis, Weniger Kundenaufwand;/
+    /REQ-5;;;3;9;09:00;03:00;unbewertet;;;TWINT-Limit vereinfachen;Effizienz, Kundenerlebnis;/
   );
 });

@@ -748,7 +748,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         'kundenaufwand',
         'erklaerung',
         'fehler',
-        'umsatz'
+        'umsatz',
+        'bindung'
       ]);
       const safeBusinessValues = Array.isArray(businessValues)
         ? [...new Set(businessValues.map((v) => String(v || '').trim()).filter((v) => allowedValues.has(v)))]
