@@ -2313,6 +2313,68 @@ body.embed-mode .main-wrap { padding-top: 8px; }
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+.ops-legal-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--silver-2);
+  font-weight: 550;
+  cursor: pointer;
+  transition: color 0.14s var(--ease);
+}
+
+.ops-legal-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.ops-sep-always {
+  color: var(--silver-3);
+}
+
+.legal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--silver);
+}
+
+.legal-section {
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--bg);
+}
+
+.legal-section h3 {
+  margin: 0 0 5px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.legal-section p {
+  margin: 0;
+  color: var(--silver-2);
+}
+
+.legal-section p + p {
+  margin-top: 6px;
+}
+
+.legal-section ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--silver-2);
+}
+
+.legal-section li + li {
+  margin-top: 4px;
+}
+
 /* ── iPhone / Mobile PWA Optimierung (390 px – 680 px, Safe-Area, kein iOS-Zoom) ── */
 @media (max-width: 680px) {
   .shell,
@@ -2606,6 +2668,7 @@ body.embed-mode .main-wrap { padding-top: 8px; }
 
   .ops-brand,
   .ops-sep,
+  #ops-counts,
   #ops-version,
   #ops-commit {
     display: none;

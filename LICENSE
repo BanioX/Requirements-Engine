@@ -19,6 +19,13 @@ ausschliesslich der Ansicht und fachlichen Prüfung (insbesondere im Rahmen
 der HFWI-Leistungsbewertung) und begründet keinerlei Nutzungs-, Verwertungs-
 oder Open-Source-Lizenzrechte.
 
+Reaktive Kenntnisnahme & Eigenbetrieb (Self-Hosting):
+Interessierte und Nutzende erhalten ausschliesslich reaktiv (auf eigene
+Anfrage oder direkte Freigabe) Kenntnis und Zugang zum Produkt. Der Anbieter
+stellt weder einen produktiven Server noch eine Datenbank zur Verfügung; nach
+vorgängiger schriftlicher Zustimmung betreibt der jeweilige Nutzer das Produkt
+eigenverantwortlich auf eigener Infrastruktur (Self-Hosting).
+
 Drittkomponenten:
 Eingebundene Open-Source-Pakete (gemäss package.json) sowie Inline-Icons
 (Lucide Icons, ISC/MIT-Lizenz) bleiben den jeweiligen Lizenzen ihrer

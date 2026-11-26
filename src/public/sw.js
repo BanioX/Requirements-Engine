@@ -1,6 +1,6 @@
 /* Minimaler Service Worker für Desktop-/Mobile-App-Installation (PWA).
    Network-first: API- & Healthcheck-Daten bleiben immer 100 % live aus PostgreSQL. */
-const CACHE = 'onestrand-reqengine-v3';
+const CACHE = 'onestrand-reqengine-v4';
 const SHELL = ['/', '/styles.css', '/app.js', '/assets/mark.svg', '/assets/favicon.svg', '/assets/apple-touch-icon.png'];
 
 self.addEventListener('install', (ev) => {
