@@ -65,3 +65,16 @@ test('Impressum & Datenschutzerklärung (Self-Hosting, Proprietär, reaktive Ken
   assert.match(js, /reaktiv/);
   assert.match(js, /revDSG/);
 });
+
+test('Erststart-Anleitung, Lucide (i)-Info-Zeichen & Inline-Warnung bei zu kurzem Text sind vorhanden', () => {
+  const html = fs.readFileSync(path.join(root, 'src', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'src', 'public', 'app.js'), 'utf8');
+  assert.match(html, /id="btn-guide"/);
+  assert.match(html, /id="guide-banner"/);
+  assert.match(html, /id="btn-composer-info"/);
+  assert.match(html, /id="composer-error"/);
+  assert.match(html, /id="fb-char-hint"/);
+  assert.match(html, /<circle cx="12" cy="12" r="10"\/><path d="M12 16v-4"\/><path d="M12 8h\.01"\/>/);
+  assert.match(js, /showComposerError/);
+  assert.match(js, /mindestens 10 Zeichen/i);
+});

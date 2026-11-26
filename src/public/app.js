@@ -26,7 +26,9 @@ const LUCIDE = {
   gitMerge: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
   check: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
   minus: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
-  messageSquare: '<svg class="lucide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+  messageSquare: '<svg class="lucide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  info: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  alertCircle: '<svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
 };
 
 const I18N = {
@@ -36,7 +38,20 @@ const I18N = {
     report: 'Report',
     board: 'Board',
     titlePlaceholder: 'Titel der Idee',
-    capturePlaceholder: 'Beschrieb der Idee oder des Problems…',
+    capturePlaceholder: 'Beschrieb der Idee oder des Problems (mind. 10 Zeichen)…',
+    guideTitle: 'So funktioniert Requirements Engine',
+    guideDismiss: 'Verstanden',
+    guideStep1: 'Erfassen: Titel (mind. 3 Zeichen) und Beschrieb (mind. 10 Zeichen) eingeben — Mehrwert, Kanal, Referenz und Zeit sind optional.',
+    guideStep2: 'Zählen (+1): Wiederkehrende Meldungen mit +1 samt realem Zeitaufwand (mind. 01:00) erfassen.',
+    guideStep3: 'Steuern: Klick auf eine Karte öffnet Einzelfälle, Rückfragen, Relevanz-Voting und Status-Aktionen (erster Account = Admin).',
+    composerInfoText: 'Pflichtfelder: Titel (mind. 3 Zeichen) und Beschrieb (mind. 10 Zeichen). Mehrwert, Kanal, Erfasser, Referenz und Zeit (Min:Sek) sind optional.',
+    errTitleShort: 'Bitte gib einen Titel mit mindestens 3 Zeichen ein.',
+    errDescShortPrefix: 'Beschrieb zu kurz: Mindestens 10 Zeichen erforderlich',
+    errCharsNow: 'aktuell',
+    errCharsOf: 'von 10 Zeichen',
+    charHintMissingPrefix: 'Noch',
+    charHintMissingSuffix: 'Zeichen für den Beschrieb nötig (mind. 10 Zeichen)',
+    charHintOk: 'Zeichen — bereit zum Erfassen',
     valueLabel: 'Mehrwert',
     valZeitersparnis: 'Effizienz',
     valKundenaufwand: 'Kundenerlebnis',
@@ -256,7 +271,20 @@ const I18N = {
     report: 'Report',
     board: 'Board',
     titlePlaceholder: 'Idea title',
-    capturePlaceholder: 'Description of the idea or problem…',
+    capturePlaceholder: 'Description of the idea or problem (min. 10 characters)…',
+    guideTitle: 'How Requirements Engine works',
+    guideDismiss: 'Got it',
+    guideStep1: 'Capture: Enter a title (min. 3 chars) and description (min. 10 chars) — value, channel, reference and time are optional.',
+    guideStep2: 'Count (+1): Log recurring inquiries with +1 and actual time spent (min. 01:00).',
+    guideStep3: 'Manage: Click any card to view individual cases, questions, relevance votes and status actions (first account = Admin).',
+    composerInfoText: 'Required fields: Title (min. 3 chars) and description (min. 10 chars). Value, channel, author, reference and time (Min:Sec) are optional.',
+    errTitleShort: 'Please enter a title with at least 3 characters.',
+    errDescShortPrefix: 'Description too short: At least 10 characters required',
+    errCharsNow: 'currently',
+    errCharsOf: 'of 10 characters',
+    charHintMissingPrefix: 'Still',
+    charHintMissingSuffix: 'characters needed for description (min. 10 chars)',
+    charHintOk: 'characters — ready to submit',
     valueLabel: 'Value',
     valZeitersparnis: 'Efficiency',
     valKundenaufwand: 'Experience',
@@ -856,12 +884,63 @@ document.addEventListener('click', (ev) => {
   }
 });
 
-function showToast(msg) {
+function showToast(msg, isError = false) {
   const el = document.getElementById('toast');
   el.textContent = msg;
+  el.classList.toggle('is-error', Boolean(isError));
   el.classList.remove('hidden');
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.add('hidden'), 2400);
+  showToast._t = setTimeout(() => el.classList.add('hidden'), isError ? 4200 : 2400);
+}
+
+function showComposerError(msg, focusEl = null) {
+  const form = document.getElementById('feedback-form');
+  const errEl = document.getElementById('composer-error');
+  document.getElementById('fb-title')?.classList.remove('is-invalid');
+  document.getElementById('fb-text')?.classList.remove('is-invalid');
+  if (focusEl) {
+    focusEl.classList.add('is-invalid');
+    focusEl.focus();
+  }
+  form?.classList.add('has-error');
+  if (errEl) {
+    errEl.innerHTML = `${LUCIDE.alertCircle}<span>${esc(msg)}</span>`;
+    errEl.classList.remove('hidden');
+  }
+  showToast(msg, true);
+}
+
+function clearComposerError() {
+  document.getElementById('feedback-form')?.classList.remove('has-error');
+  document.getElementById('fb-title')?.classList.remove('is-invalid');
+  document.getElementById('fb-text')?.classList.remove('is-invalid');
+  const errEl = document.getElementById('composer-error');
+  if (errEl) {
+    errEl.classList.add('hidden');
+    errEl.innerHTML = '';
+  }
+}
+
+function updateCharHint() {
+  const ta = document.getElementById('fb-text');
+  const hint = document.getElementById('fb-char-hint');
+  if (!ta || !hint) return;
+  const len = ta.value.replace(/\s+/g, ' ').trim().length;
+  if (len === 0) {
+    hint.classList.add('hidden');
+    hint.classList.remove('is-ok');
+    return;
+  }
+  hint.classList.remove('hidden');
+  if (len < 10) {
+    const missing = 10 - len;
+    hint.classList.remove('is-ok');
+    hint.innerHTML = `${LUCIDE.info}<span>${esc(t('charHintMissingPrefix'))} ${missing} ${esc(t('charHintMissingSuffix'))} (${len}/10)</span>`;
+  } else {
+    hint.classList.add('is-ok');
+    hint.innerHTML = `${LUCIDE.check}<span>${len} ${esc(t('charHintOk'))}</span>`;
+    clearComposerError();
+  }
 }
 
 async function api(url, options = {}) {
@@ -1485,6 +1564,19 @@ function applyLanguageToStaticUi() {
   if (impBtn) impBtn.textContent = t('imprint');
   const privBtn = document.getElementById('btn-open-privacy');
   if (privBtn) privBtn.textContent = t('privacy');
+  const gTitle = document.getElementById('guide-title');
+  if (gTitle) gTitle.textContent = t('guideTitle');
+  const gDismiss = document.getElementById('btn-dismiss-guide');
+  if (gDismiss) gDismiss.textContent = t('guideDismiss');
+  const g1 = document.getElementById('guide-step-1');
+  if (g1) g1.textContent = t('guideStep1');
+  const g2 = document.getElementById('guide-step-2');
+  if (g2) g2.textContent = t('guideStep2');
+  const g3 = document.getElementById('guide-step-3');
+  if (g3) g3.textContent = t('guideStep3');
+  const cInfo = document.getElementById('composer-info-text');
+  if (cInfo) cInfo.textContent = t('composerInfoText');
+  updateCharHint();
   if (!document.getElementById('legal-modal')?.classList.contains('hidden')) {
     openLegalModal(state.legalTab);
   }
@@ -2421,15 +2513,31 @@ async function handleSubmit(ev) {
   const authorInput = document.getElementById('fb-author');
   const refInput = document.getElementById('fb-ref');
   const dupBanner = document.getElementById('dup-banner');
+  const titleVal = (titleInput ? titleInput.value : '').replace(/\s+/g, ' ').trim();
+  const rawVal = textarea.value.replace(/\s+/g, ' ').trim();
   const author = authorInput.value.trim();
   const interactionRef = refInput.value.trim();
+
+  if (titleVal.length < 3) {
+    showComposerError(t('errTitleShort'), titleInput);
+    return;
+  }
+  if (rawVal.length < 10) {
+    showComposerError(
+      `${t('errDescShortPrefix')} (${t('errCharsNow')} ${rawVal.length} ${t('errCharsOf')}).`,
+      textarea
+    );
+    updateCharHint();
+    return;
+  }
+  clearComposerError();
 
   try {
     const res = await api('/api/stories', {
       method: 'POST',
       body: JSON.stringify({
-        title: titleInput ? titleInput.value.trim() : '',
-        rawFeedback: textarea.value.trim(),
+        title: titleVal,
+        rawFeedback: rawVal,
         businessValues: [...state.businessValues],
         channel: state.channel,
         submittedBy: author,
@@ -2441,6 +2549,8 @@ async function handleSubmit(ev) {
 
     if (titleInput) titleInput.value = '';
     textarea.value = '';
+    updateCharHint();
+    clearComposerError();
     refInput.value = '';
     state.channel = '';
     state.businessValues.clear();
@@ -2465,7 +2575,7 @@ async function handleSubmit(ev) {
     showToast(res.story.total_duration_seconds > 0 ? `${t('toastCaptured')} (${fmtDurationHuman(res.story.total_duration_seconds)})` : t('toastCaptured'));
     await Promise.all([loadIdeas(), loadHealth()]);
   } catch (err) {
-    showToast(err.message);
+    showComposerError(err.message || 'Erfassen fehlgeschlagen.', textarea);
   }
 }
 
@@ -2522,6 +2632,40 @@ function init() {
   bindDurationPicker(document.getElementById('composer-dur-picker'), (sec) => {
     state.composerDurationSec = sec;
   });
+
+  // Erststart-Kurzanleitung (Lucide Info) & Live-Eingabehinweise
+  const guideBanner = document.getElementById('guide-banner');
+  const guideBtn = document.getElementById('btn-guide');
+  const setGuideOpen = (open) => {
+    guideBanner?.classList.toggle('hidden', !open);
+    guideBtn?.classList.toggle('active', open);
+  };
+  if (!document.body.classList.contains('embed-mode') && localStorage.getItem('re_guide_dismissed') !== '1') {
+    setGuideOpen(true);
+  }
+  guideBtn?.addEventListener('click', () => {
+    const isHidden = guideBanner?.classList.contains('hidden');
+    setView('board');
+    setGuideOpen(Boolean(isHidden));
+  });
+  document.getElementById('btn-dismiss-guide')?.addEventListener('click', () => {
+    localStorage.setItem('re_guide_dismissed', '1');
+    setGuideOpen(false);
+  });
+
+  const composerInfoBtn = document.getElementById('btn-composer-info');
+  const composerInfoStrip = document.getElementById('composer-info-strip');
+  composerInfoBtn?.addEventListener('click', () => {
+    const willOpen = composerInfoStrip?.classList.contains('hidden');
+    composerInfoStrip?.classList.toggle('hidden', !willOpen);
+    composerInfoBtn.classList.toggle('active', Boolean(willOpen));
+  });
+
+  document.getElementById('fb-title')?.addEventListener('input', () => {
+    const v = document.getElementById('fb-title')?.value.trim() || '';
+    if (v.length >= 3) clearComposerError();
+  });
+  document.getElementById('fb-text')?.addEventListener('input', updateCharHint);
 
   // Keine vorausgefüllten Felder beim Start
   document.getElementById('fb-author').value = '';
@@ -3110,10 +3254,12 @@ function init() {
       const durationSeconds = durInput && durInput.value.trim() ? parseMMSS(durInput.value) : Number(picker?.dataset.sec || 0);
 
       if (durationSeconds < 60) {
-        showToast(t('toastMinTime'));
+        durInput?.classList.add('is-invalid');
+        showToast(t('toastMinTime'), true);
         durInput?.focus();
         return;
       }
+      durInput?.classList.remove('is-invalid');
 
       try {
         await api(`/api/stories/${id}/vote`, {
