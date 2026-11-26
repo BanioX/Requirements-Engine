@@ -28,6 +28,7 @@ import {
 
 const ALLOWED_DECISION_STATUSES = new Set([
   'Eingang',
+  'In Prüfung',
   'Geprüft',
   'Bereit',
   'Angenommen',
@@ -152,6 +153,22 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   }
 
+  async function requireReviewAccess(req, res, next) {
+    try {
+      const user = getSessionUser(req);
+      if (user && hasPermission(user.role, 'reviewStories')) return next();
+      if (configuredManagerPin) {
+        const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+        if (provided === configuredManagerPin) return next();
+      }
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      if (adminCount === 0 && !configuredManagerPin) return next();
+      return res.status(403).json({ error: 'Diese Aktion ist nur für Supervisor, Dev, Manager oder Admin freigegeben.' });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
   async function requireDecideAccess(req, res, next) {
     try {
       const user = getSessionUser(req);
@@ -162,10 +179,21 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       }
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
       if (adminCount === 0 && !configuredManagerPin) return next();
-      return res.status(403).json({ error: 'Diese Aktion ist nur für Supervisor, Manager oder Admin freigegeben.' });
+      return res.status(403).json({ error: 'Diese Aktion ist nur für Manager oder Admin freigegeben.' });
     } catch (err) {
       return next(err);
     }
+  }
+
+  async function hasPermissionOrOpen(req, permission) {
+    const user = getSessionUser(req);
+    if (user && hasPermission(user.role, permission)) return true;
+    if (configuredManagerPin) {
+      const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+      if (provided === configuredManagerPin) return true;
+    }
+    const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+    return adminCount === 0 && !configuredManagerPin;
   }
 
   async function getCommentsVisibility() {
@@ -475,7 +503,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   // Stories auflisten (filtert Entscheid-Kommentare wenn Chef 'own_only' aktiviert hat)
   app.get('/api/stories', async (req, res, next) => {
     try {
-      const [stories, visibility, privileged] = await Promise.all([
+      const token = getClientToken(req);
+      const [stories, visibility, privileged, myVotes] = await Promise.all([
         store.listStories({
           status: req.query.status,
           moscow: req.query.moscow,
@@ -483,9 +512,9 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
           sort: req.query.sort
         }),
         getCommentsVisibility(),
-        canSeeAllComments(req)
+        canSeeAllComments(req),
+        store.getMyRelevanceVotes ? store.getMyRelevanceVotes(token) : {}
       ]);
-      const token = getClientToken(req);
 
       const sanitized = stories.map((s) => {
         const list = Array.isArray(s.decision_feedback_json) ? s.decision_feedback_json : [];
@@ -495,6 +524,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
             : list;
         return {
           ...s,
+          my_relevance_vote: myVotes[s.id] || '',
           decision_feedback_json: visibleList.map(({ clientToken: _omit, ...rest }) => rest)
         };
       });
@@ -597,7 +627,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       };
 
       const byStatus = {
-        offen: stories.filter((s) => ['Eingang', 'Geprüft', 'Bereit'].includes(s.status)).length,
+        offen: stories.filter((s) => ['Eingang', 'In Prüfung', 'Geprüft', 'Bereit'].includes(s.status)).length,
         inArbeit: stories.filter((s) => ['In Arbeit', 'Angenommen'].includes(s.status)).length,
         erledigt: stories.filter((s) => s.status === 'Umgesetzt').length,
         abgelehnt: stories.filter((s) => s.status === 'Abgelehnt').length
@@ -812,8 +842,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Duplikate verlustfrei zusammenführen (alle Fälle, Zeiten & Ref-IDs wandern ins Zielthema)
-  app.post('/api/stories/:id/merge', requireDecideAccess, async (req, res, next) => {
+  // Duplikate verlustfrei zusammenführen (Supervisor / Dev / Manager / Admin)
+  app.post('/api/stories/:id/merge', requireReviewAccess, async (req, res, next) => {
     try {
       const sourceId = parsePositiveId(req.params.id);
       const targetId = parsePositiveId(req.body?.targetId);
@@ -856,6 +886,190 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       res.setHeader('X-Comments-Visibility', visibility);
       res.setHeader('X-Total-Mentions', String(allMentions.length));
       res.json(visible.map(({ client_token: _omit, ...rest }) => rest));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Rückfragen-Thread (Dev / Supervisor stellen Rückfrage -> NUR Erfasser des Falls darf antworten + Notification)
+  app.get('/api/stories/:id/questions', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const story = await store.getStoryById(id);
+      if (!story) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      const token = getClientToken(req);
+      const questions = store.listStoryQuestions ? await store.listStoryQuestions(id) : [];
+      const isOwner = Boolean(story.owner_client_token && token && story.owner_client_token === token);
+      res.json({ isOwner, questions });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/stories/:id/questions', requireReviewAccess, async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const body = String(req.body?.body || '').trim();
+      if (body.length < 3 || body.length > 1000) {
+        return res.status(400).json({ error: 'Bitte eine Rückfrage zwischen 3 und 1000 Zeichen eingeben.' });
+      }
+      if (!store.createStoryQuestion) {
+        return res.status(501).json({ error: 'Rückfragen nicht verfügbar.' });
+      }
+      const user = getSessionUser(req);
+      const q = await store.createStoryQuestion(id, {
+        authorName: user ? user.displayName : 'Team',
+        authorRole: user ? normalizeRole(user.role) : 'supervisor',
+        authorToken: getClientToken(req),
+        body
+      });
+      if (!q) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      res.status(201).json(q);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/stories/:id/questions/:qid/reply', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      const qid = parsePositiveId(req.params.qid);
+      if (!id || !qid) return res.status(400).json({ error: 'Ungültige ID.' });
+      const story = await store.getStoryById(id);
+      if (!story) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+
+      const token = getClientToken(req);
+      if (!story.owner_client_token || !token || story.owner_client_token !== token) {
+        return res.status(403).json({ error: 'Nur die Person, welche diesen Fall erfasst hat, darf auf Rückfragen antworten.' });
+      }
+      const replyBody = String(req.body?.replyBody || '').trim();
+      if (replyBody.length < 2 || replyBody.length > 1000) {
+        return res.status(400).json({ error: 'Bitte eine Antwort zwischen 2 und 1000 Zeichen eingeben.' });
+      }
+      if (!store.replyToStoryQuestion) {
+        return res.status(501).json({ error: 'Antwortfunktion nicht verfügbar.' });
+      }
+      const user = getSessionUser(req);
+      const updated = await store.replyToStoryQuestion(id, qid, {
+        replyBody,
+        replyAuthor: user ? user.displayName : story.submitted_by || 'Autor'
+      });
+      if (!updated) return res.status(404).json({ error: 'Rückfrage nicht gefunden.' });
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // In-App Benachrichtigungen & Smarte Event-Abos
+  app.get('/api/notifications', async (req, res, next) => {
+    try {
+      const user = getSessionUser(req);
+      const token = getClientToken(req);
+      const [items, subscription] = await Promise.all([
+        store.listNotifications
+          ? store.listNotifications({
+              clientToken: token,
+              role: user ? normalizeRole(user.role) : ''
+            })
+          : [],
+        store.getNotificationSubscription
+          ? store.getNotificationSubscription(token)
+          : { onImplemented: true, onThreshold: false, thresholdCount: 5, onDecision: false }
+      ]);
+      const unreadCount = items.filter((n) => !n.is_read).length;
+      res.json({ unreadCount, items, subscription });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.put('/api/notifications/subscription', async (req, res, next) => {
+    try {
+      const token = getClientToken(req);
+      if (!token) return res.status(400).json({ error: 'Client-Kennung fehlt.' });
+      if (!store.saveNotificationSubscription) {
+        return res.status(501).json({ error: 'Abo-Funktion nicht verfügbar.' });
+      }
+      const user = getSessionUser(req);
+      const saved = await store.saveNotificationSubscription(token, {
+        userName: user ? user.displayName : '',
+        onImplemented: Boolean(req.body?.onImplemented),
+        onThreshold: Boolean(req.body?.onThreshold),
+        thresholdCount: Number(req.body?.thresholdCount) || 5,
+        onDecision: Boolean(req.body?.onDecision)
+      });
+      res.json(saved);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Relevanz-Voting (Relevant / Irrelevant — 1 Stimme pro Person, vollständig geloggt gegen Missbrauch & für Minderheits-Wertschätzung)
+  app.post('/api/stories/:id/relevance', async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const vote = req.body?.vote;
+      if (!['relevant', 'irrelevant'].includes(vote)) {
+        return res.status(400).json({ error: 'Vote muss relevant oder irrelevant sein.' });
+      }
+      const voterToken = getClientToken(req);
+      if (!voterToken) return res.status(400).json({ error: 'Client-Kennung fehlt.' });
+      if (!store.upsertRelevanceVote) {
+        return res.status(501).json({ error: 'Relevanz-Voting nicht verfügbar.' });
+      }
+      const user = getSessionUser(req);
+      const voterName = user
+        ? user.displayName
+        : String(req.body?.voterName || '').trim().slice(0, 80) || 'Teammitglied';
+      const voterRole = user ? normalizeRole(user.role) : 'user';
+      const result = await store.upsertRelevanceVote(id, { voterToken, voterName, voterRole, vote });
+      if (!result) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/api/stories/:id/relevance', requireReviewAccess, async (req, res, next) => {
+    try {
+      const id = parsePositiveId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
+      const votes = store.listRelevanceVotes ? await store.listRelevanceVotes(id) : [];
+      const relevant = votes.filter((v) => v.vote === 'relevant');
+      const irrelevant = votes.filter((v) => v.vote === 'irrelevant');
+      const minority =
+        relevant.length > 0 && irrelevant.length >= 3 && relevant.length <= 2
+          ? { side: 'relevant', voters: relevant }
+          : irrelevant.length > 0 && relevant.length >= 3 && irrelevant.length <= 2
+            ? { side: 'irrelevant', voters: irrelevant }
+            : null;
+      res.json({
+        relevantCount: relevant.length,
+        irrelevantCount: irrelevant.length,
+        minority,
+        votes
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/notifications/read', async (req, res, next) => {
+    try {
+      const user = getSessionUser(req);
+      const id = req.body?.id ? parsePositiveId(req.body.id) : null;
+      if (store.markNotificationsRead) {
+        await store.markNotificationsRead({
+          clientToken: getClientToken(req),
+          role: user ? normalizeRole(user.role) : '',
+          id
+        });
+      }
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -906,14 +1120,25 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         channel: safeChannel,
         clientToken: getClientToken(req)
       });
+      if (updated && store.notifyEvent) {
+        await store
+          .notifyEvent({
+            eventType: 'threshold',
+            story: updated,
+            senderName: recordedBy || 'System',
+            senderRole: sessionUser ? normalizeRole(sessionUser.role) : 'user',
+            message: `Schwellenwert erreicht: ${updated.votes}× Meldungen`
+          })
+          .catch(() => {});
+      }
       res.json(updated);
     } catch (err) {
       next(err);
     }
   });
 
-  // Entwickler-Notiz (Systemlogik) & Kunden-Wording direkt aktualisieren
-  app.patch('/api/stories/:id/notes', async (req, res, next) => {
+  // Fachnotiz direkt aktualisieren (Supervisor / Dev / Manager / Admin)
+  app.patch('/api/stories/:id/notes', requireReviewAccess, async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
@@ -929,8 +1154,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Machbarkeit bewerten (Supervisor / Manager / Admin)
-  app.patch('/api/stories/:id/feasibility', requireDecideAccess, async (req, res, next) => {
+  // Aufwand bewerten (Supervisor / Dev / Manager / Admin)
+  app.patch('/api/stories/:id/feasibility', requireReviewAccess, async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
@@ -970,8 +1195,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Entscheid fällen (Supervisor / Manager / Admin)
-  app.post('/api/stories/:id/decision', requireDecideAccess, async (req, res, next) => {
+  // Rollengebundener Status-Entscheid (In Prüfung: Supervisor+Dev+Manager+Admin | In Arbeit & Erledigt: Dev+Manager+Admin | Ablehnen: Manager+Admin)
+  app.post('/api/stories/:id/decision', async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
@@ -979,10 +1204,35 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!ALLOWED_DECISION_STATUSES.has(status)) {
         return res.status(400).json({ error: 'Ungültiger Entscheid-Status.' });
       }
+
+      const requiredPerm =
+        status === 'In Prüfung' || status === 'Geprüft' || status === 'Bereit'
+          ? 'reviewStories'
+          : status === 'In Arbeit' || status === 'Angenommen' || status === 'Umgesetzt'
+            ? 'developStories'
+            : 'decideStories';
+
+      const allowed = await hasPermissionOrOpen(req, requiredPerm);
+      if (!allowed) {
+        const permHint =
+          requiredPerm === 'reviewStories'
+            ? 'Nur Supervisor, Dev, Manager oder Admin dürfen Themen in Prüfung senden.'
+            : requiredPerm === 'developStories'
+              ? 'Nur Dev, Manager oder Admin dürfen Themen in Arbeit setzen oder abschliessen.'
+              : 'Nur Manager oder Admin dürfen Themen ablehnen.';
+        return res.status(403).json({ error: permHint });
+      }
+
       const customerText = String(publicResponse || reason || '').trim();
       if (customerText.length < 5 || customerText.length > 1500) {
-        return res.status(400).json({ error: 'Bitte ein Kunden-Wording zwischen 5 und 1500 Zeichen angeben.' });
+        return res.status(400).json({ error: 'Bitte eine Begründung zwischen 5 und 1500 Zeichen angeben.' });
       }
+      const sessionUser = getSessionUser(req);
+      const resolvedActor = sessionUser
+        ? `${sessionUser.displayName} (${ROLE_LABELS[sessionUser.role] || sessionUser.role})`
+        : actorRole
+          ? String(actorRole).trim().slice(0, 80)
+          : 'Betriebsverantwortung';
       const internalText = internalNote !== undefined ? String(internalNote).trim().slice(0, 1500) : undefined;
       const updated = await store.decideStory(id, {
         status,
@@ -990,9 +1240,21 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         publicResponse: customerText,
         internalNote: internalText,
         dueDate: dueDate || null,
-        actorRole: actorRole ? String(actorRole).trim().slice(0, 80) : 'Betriebsverantwortung'
+        actorRole: resolvedActor
       });
       if (!updated) return res.status(404).json({ error: 'Anforderung nicht gefunden.' });
+      if (store.notifyEvent) {
+        const evType = status === 'Umgesetzt' ? 'implemented' : 'decision';
+        await store
+          .notifyEvent({
+            eventType: evType,
+            story: updated,
+            senderName: sessionUser ? sessionUser.displayName : 'Team',
+            senderRole: sessionUser ? normalizeRole(sessionUser.role) : 'admin',
+            message: status === 'Umgesetzt' ? `Umgesetzt: ${customerText}` : `${status}: ${customerText}`
+          })
+          .catch(() => {});
+      }
       res.json(updated);
     } catch (err) {
       next(err);

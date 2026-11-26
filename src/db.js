@@ -118,10 +118,11 @@ export async function initDatabase(pool) {
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS timed_mentions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS interaction_refs_json JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS business_values_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS owner_client_token TEXT NOT NULL DEFAULT '';
 
     UPDATE feedback_stories
     SET decided_at = updated_at
-    WHERE decided_at IS NULL AND status IN ('Abgelehnt', 'Umgesetzt', 'In Arbeit', 'Angenommen');
+    WHERE decided_at IS NULL AND status IN ('In Prüfung', 'Abgelehnt', 'Umgesetzt', 'In Arbeit', 'Angenommen');
 
     CREATE TABLE IF NOT EXISTS story_mentions (
       id SERIAL PRIMARY KEY,
@@ -143,6 +144,60 @@ export async function initDatabase(pool) {
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS customer_ref TEXT NOT NULL DEFAULT '';
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT '';
     ALTER TABLE story_mentions ADD COLUMN IF NOT EXISTS client_token TEXT NOT NULL DEFAULT '';
+
+    UPDATE feedback_stories f
+    SET owner_client_token = COALESCE(
+      (SELECT m.client_token FROM story_mentions m WHERE m.story_id = f.id AND m.client_token <> '' ORDER BY m.id ASC LIMIT 1),
+      ''
+    )
+    WHERE f.owner_client_token = '';
+
+    CREATE TABLE IF NOT EXISTS story_questions (
+      id SERIAL PRIMARY KEY,
+      story_id INTEGER NOT NULL REFERENCES feedback_stories(id) ON DELETE CASCADE,
+      author_name TEXT NOT NULL DEFAULT '',
+      author_role TEXT NOT NULL DEFAULT 'supervisor',
+      author_token TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      reply_body TEXT NOT NULL DEFAULT '',
+      reply_author TEXT NOT NULL DEFAULT '',
+      replied_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      recipient_token TEXT NOT NULL DEFAULT '',
+      recipient_role TEXT NOT NULL DEFAULT '',
+      story_id INTEGER NOT NULL REFERENCES feedback_stories(id) ON DELETE CASCADE,
+      story_title TEXT NOT NULL DEFAULT '',
+      sender_name TEXT NOT NULL DEFAULT '',
+      sender_role TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS story_relevance_votes (
+      id SERIAL PRIMARY KEY,
+      story_id INTEGER NOT NULL REFERENCES feedback_stories(id) ON DELETE CASCADE,
+      voter_token TEXT NOT NULL,
+      voter_name TEXT NOT NULL DEFAULT '',
+      voter_role TEXT NOT NULL DEFAULT 'user',
+      vote TEXT NOT NULL CHECK (vote IN ('relevant', 'irrelevant')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (story_id, voter_token)
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_subscriptions (
+      client_token TEXT PRIMARY KEY,
+      user_name TEXT NOT NULL DEFAULT '',
+      on_implemented BOOLEAN NOT NULL DEFAULT TRUE,
+      on_threshold BOOLEAN NOT NULL DEFAULT FALSE,
+      threshold_count INTEGER NOT NULL DEFAULT 5,
+      on_decision BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
     -- Historische Meldungen sauber angleichen, falls Einträge vor story_mentions gezählt wurden
     INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, created_at)
@@ -410,7 +465,20 @@ export function createPostgresStore(pool) {
             : 'ORDER BY f.priority_score DESC, f.votes DESC, f.created_at DESC';
 
       const res = await pool.query(
-        `SELECT f.*, p.title AS process_title
+        `SELECT f.*, p.title AS process_title,
+                COALESCE((
+                  SELECT SUM(CASE WHEN q.reply_body <> '' THEN 2 ELSE 1 END)::int
+                  FROM story_questions q WHERE q.story_id = f.id
+                ), 0) AS question_activity_count,
+                COALESCE((
+                  SELECT COUNT(*)::int FROM story_questions q WHERE q.story_id = f.id AND q.reply_body = ''
+                ), 0) AS open_questions_count,
+                COALESCE((
+                  SELECT COUNT(*)::int FROM story_relevance_votes rv WHERE rv.story_id = f.id AND rv.vote = 'relevant'
+                ), 0) AS relevance_up,
+                COALESCE((
+                  SELECT COUNT(*)::int FROM story_relevance_votes rv WHERE rv.story_id = f.id AND rv.vote = 'irrelevant'
+                ), 0) AS relevance_down
          FROM feedback_stories f
          LEFT JOIN processes p ON p.id = f.process_id
          ${whereSql}
@@ -448,10 +516,11 @@ export function createPostgresStore(pool) {
       const safeValues = Array.isArray(payload.businessValues)
         ? [...new Set(payload.businessValues.map((v) => String(v || '').trim().slice(0, 40)).filter(Boolean))].slice(0, 8)
         : [];
+      const safeClient = typeof payload.clientToken === 'string' ? payload.clientToken.trim().slice(0, 64) : '';
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, interaction_refs_json, business_values_json, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,'Eingang',$22)
+         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, interaction_refs_json, business_values_json, owner_client_token, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,$20,$21::jsonb,$22::jsonb,'Eingang',$23)
          RETURNING *`,
         [
           payload.processId || null,
@@ -473,6 +542,7 @@ export function createPostgresStore(pool) {
           timed,
           JSON.stringify(initialRefs),
           JSON.stringify(safeValues),
+          safeClient,
           JSON.stringify(payload.tasks),
           JSON.stringify(payload.acceptanceCriteria),
           payload.dueDate || null
@@ -480,7 +550,6 @@ export function createPostgresStore(pool) {
       );
       const created = res.rows[0];
       const safeCustomer = typeof payload.customerRef === 'string' ? payload.customerRef.trim().slice(0, 100) : '';
-      const safeClient = typeof payload.clientToken === 'string' ? payload.clientToken.trim().slice(0, 64) : '';
       await pool.query(
         `INSERT INTO story_mentions (story_id, delta, recorded_by, duration_seconds, interaction_ref, feedback_note, customer_ref, channel, client_token)
          VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -602,6 +671,226 @@ export function createPostgresStore(pool) {
         [storyId, Math.max(1, Math.min(300, Number(limit) || 150))]
       );
       return res.rows;
+    },
+
+    async listStoryQuestions(storyId) {
+      const res = await pool.query(
+        `SELECT id, story_id, author_name, author_role, body, reply_body, reply_author, replied_at, created_at
+         FROM story_questions
+         WHERE story_id = $1
+         ORDER BY created_at ASC, id ASC`,
+        [storyId]
+      );
+      return res.rows;
+    },
+
+    async createStoryQuestion(storyId, { authorName, authorRole, authorToken, body }) {
+      const storyRes = await pool.query(`SELECT id, title, owner_client_token FROM feedback_stories WHERE id = $1`, [storyId]);
+      if (storyRes.rowCount === 0) return null;
+      const story = storyRes.rows[0];
+      const res = await pool.query(
+        `INSERT INTO story_questions (story_id, author_name, author_role, author_token, body)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, story_id, author_name, author_role, body, reply_body, reply_author, replied_at, created_at`,
+        [storyId, authorName || '', authorRole || 'supervisor', authorToken || '', body]
+      );
+      if (story.owner_client_token && story.owner_client_token !== authorToken) {
+        await pool.query(
+          `INSERT INTO notifications (recipient_token, recipient_role, story_id, story_title, sender_name, sender_role, message)
+           VALUES ($1, 'owner', $2, $3, $4, $5, $6)`,
+          [story.owner_client_token, story.id, story.title, authorName || '', authorRole || 'supervisor', body.slice(0, 220)]
+        );
+      }
+      return res.rows[0];
+    },
+
+    async replyToStoryQuestion(storyId, questionId, { replyBody, replyAuthor }) {
+      const qRes = await pool.query(
+        `SELECT q.*, f.title AS story_title
+         FROM story_questions q
+         JOIN feedback_stories f ON f.id = q.story_id
+         WHERE q.id = $1 AND q.story_id = $2`,
+        [questionId, storyId]
+      );
+      if (qRes.rowCount === 0) return null;
+      const q = qRes.rows[0];
+      const res = await pool.query(
+        `UPDATE story_questions
+         SET reply_body = $1, reply_author = $2, replied_at = NOW()
+         WHERE id = $3 AND story_id = $4
+         RETURNING id, story_id, author_name, author_role, body, reply_body, reply_author, replied_at, created_at`,
+        [replyBody, replyAuthor || '', questionId, storyId]
+      );
+      if (q.author_token || q.author_role) {
+        await pool.query(
+          `INSERT INTO notifications (recipient_token, recipient_role, story_id, story_title, sender_name, sender_role, message)
+           VALUES ($1, $2, $3, $4, $5, 'owner', $6)`,
+          [q.author_token || '', q.author_role || 'supervisor', storyId, q.story_title || '', replyAuthor || 'Autor', replyBody.slice(0, 220)]
+        );
+      }
+      return res.rows[0];
+    },
+
+    async listNotifications({ clientToken = '', role = '' } = {}) {
+      if (!clientToken && !role) return [];
+      const res = await pool.query(
+        `SELECT id, story_id, story_title, sender_name, sender_role, message, is_read, created_at
+         FROM notifications
+         WHERE (recipient_token <> '' AND recipient_token = $1)
+            OR (recipient_token = '' AND recipient_role <> '' AND recipient_role = $2)
+         ORDER BY created_at DESC, id DESC
+         LIMIT 25`,
+        [clientToken, role]
+      );
+      return res.rows;
+    },
+
+    async markNotificationsRead({ clientToken = '', role = '', id = null } = {}) {
+      if (id) {
+        await pool.query(
+          `UPDATE notifications SET is_read = TRUE
+           WHERE id = $1
+             AND ((recipient_token <> '' AND recipient_token = $2)
+               OR (recipient_token = '' AND recipient_role <> '' AND recipient_role = $3))`,
+          [id, clientToken, role]
+        );
+        return;
+      }
+      await pool.query(
+        `UPDATE notifications SET is_read = TRUE
+         WHERE (recipient_token <> '' AND recipient_token = $1)
+            OR (recipient_token = '' AND recipient_role <> '' AND recipient_role = $2)`,
+        [clientToken, role]
+      );
+    },
+
+    async upsertRelevanceVote(storyId, { voterToken, voterName = '', voterRole = 'user', vote }) {
+      const existing = await pool.query(`SELECT id FROM feedback_stories WHERE id = $1`, [storyId]);
+      if (existing.rowCount === 0) return null;
+      await pool.query(
+        `INSERT INTO story_relevance_votes (story_id, voter_token, voter_name, voter_role, vote, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (story_id, voter_token)
+         DO UPDATE SET vote = EXCLUDED.vote, voter_name = EXCLUDED.voter_name, voter_role = EXCLUDED.voter_role, updated_at = NOW()`,
+        [storyId, voterToken, String(voterName || '').slice(0, 80), voterRole || 'user', vote]
+      );
+      const counts = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE vote = 'relevant')::int AS relevance_up,
+           COUNT(*) FILTER (WHERE vote = 'irrelevant')::int AS relevance_down
+         FROM story_relevance_votes WHERE story_id = $1`,
+        [storyId]
+      );
+      return {
+        storyId,
+        vote,
+        relevanceUp: counts.rows[0]?.relevance_up ?? 0,
+        relevanceDown: counts.rows[0]?.relevance_down ?? 0
+      };
+    },
+
+    async listRelevanceVotes(storyId) {
+      const res = await pool.query(
+        `SELECT id, story_id, voter_name, voter_role, vote, updated_at
+         FROM story_relevance_votes
+         WHERE story_id = $1
+         ORDER BY updated_at DESC, id DESC`,
+        [storyId]
+      );
+      return res.rows;
+    },
+
+    async getMyRelevanceVotes(voterToken) {
+      if (!voterToken) return {};
+      const res = await pool.query(
+        `SELECT story_id, vote FROM story_relevance_votes WHERE voter_token = $1`,
+        [voterToken]
+      );
+      const out = {};
+      for (const r of res.rows) out[r.story_id] = r.vote;
+      return out;
+    },
+
+    async getNotificationSubscription(clientToken) {
+      if (!clientToken) {
+        return { onImplemented: true, onThreshold: false, thresholdCount: 5, onDecision: false };
+      }
+      const res = await pool.query(
+        `SELECT on_implemented, on_threshold, threshold_count, on_decision
+         FROM notification_subscriptions WHERE client_token = $1`,
+        [clientToken]
+      );
+      if (res.rowCount === 0) {
+        return { onImplemented: true, onThreshold: false, thresholdCount: 5, onDecision: false };
+      }
+      const r = res.rows[0];
+      return {
+        onImplemented: Boolean(r.on_implemented),
+        onThreshold: Boolean(r.on_threshold),
+        thresholdCount: Number(r.threshold_count) || 5,
+        onDecision: Boolean(r.on_decision)
+      };
+    },
+
+    async saveNotificationSubscription(clientToken, { userName = '', onImplemented, onThreshold, thresholdCount = 5, onDecision }) {
+      const safeThresh = Math.max(2, Math.min(100, Number(thresholdCount) || 5));
+      await pool.query(
+        `INSERT INTO notification_subscriptions (client_token, user_name, on_implemented, on_threshold, threshold_count, on_decision, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (client_token)
+         DO UPDATE SET user_name = EXCLUDED.user_name,
+                       on_implemented = EXCLUDED.on_implemented,
+                       on_threshold = EXCLUDED.on_threshold,
+                       threshold_count = EXCLUDED.threshold_count,
+                       on_decision = EXCLUDED.on_decision,
+                       updated_at = NOW()`,
+        [clientToken, String(userName || '').slice(0, 80), Boolean(onImplemented), Boolean(onThreshold), safeThresh, Boolean(onDecision)]
+      );
+      return {
+        onImplemented: Boolean(onImplemented),
+        onThreshold: Boolean(onThreshold),
+        thresholdCount: safeThresh,
+        onDecision: Boolean(onDecision)
+      };
+    },
+
+    async notifyEvent({ eventType, story, senderName = '', senderRole = 'admin', message = '' }) {
+      if (!story) return 0;
+      const recipients = new Set();
+
+      // Bei Umgesetzt wird der Erfasser (Autor) des Falls automatisch informiert
+      if (eventType === 'implemented' && story.owner_client_token) {
+        recipients.add(story.owner_client_token);
+      }
+
+      // Smarte Event-Abos auswerten
+      let subRes;
+      if (eventType === 'implemented') {
+        subRes = await pool.query(`SELECT client_token FROM notification_subscriptions WHERE on_implemented = TRUE`);
+      } else if (eventType === 'threshold') {
+        subRes = await pool.query(
+          `SELECT client_token FROM notification_subscriptions WHERE on_threshold = TRUE AND threshold_count = $1`,
+          [Number(story.votes) || 0]
+        );
+      } else if (eventType === 'decision') {
+        subRes = await pool.query(`SELECT client_token FROM notification_subscriptions WHERE on_decision = TRUE`);
+      }
+      if (subRes) {
+        for (const r of subRes.rows) {
+          if (r.client_token) recipients.add(r.client_token);
+        }
+      }
+
+      let sent = 0;
+      for (const token of recipients) {
+        await pool.query(
+          `INSERT INTO notifications (recipient_token, recipient_role, story_id, story_title, sender_name, sender_role, message)
+           VALUES ($1, 'subscriber', $2, $3, $4, $5, $6)`,
+          [token, story.id, story.title || '', senderName || '', senderRole || 'admin', message.slice(0, 220)]
+        );
+        sent += 1;
+      }
+      return sent;
     },
 
     async upvoteStory(
@@ -741,7 +1030,7 @@ export function createPostgresStore(pool) {
 
       if (status && status !== 'Alle') {
         if (status === 'Offen') {
-          clauses.push(`f.status IN ('Eingang', 'Geprüft', 'Bereit')`);
+          clauses.push(`f.status IN ('Eingang', 'In Prüfung', 'Geprüft', 'Bereit')`);
         } else if (status === 'In Arbeit') {
           clauses.push(`f.status IN ('In Arbeit', 'Angenommen')`);
         } else {

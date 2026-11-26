@@ -38,12 +38,19 @@
           <svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
           <span id="btn-report-label">Report</span>
         </button>
-        <div class="lang-switch" role="group" aria-label="Sprache / Language">
+        <div class="lang-switch" role="group" aria-label="Sprache">
           <button type="button" class="lang-btn active" data-lang="de">DE</button>
           <button type="button" class="lang-btn" data-lang="en">EN</button>
         </div>
+        <div class="notif-wrap">
+          <button type="button" id="btn-notif" class="profile-btn notif-btn" aria-label="Benachrichtigungen" title="Benachrichtigungen">
+            <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span id="notif-badge" class="notif-badge hidden">0</span>
+          </button>
+          <div id="notif-popover" class="profile-popover notif-popover hidden" role="menu"></div>
+        </div>
         <div class="profile-wrap">
-          <button type="button" id="btn-profile" class="profile-btn" aria-label="Profil und Anmeldung" title="Anmelden / Profil">
+          <button type="button" id="btn-profile" class="profile-btn" aria-label="Profil und Anmeldung" title="Anmelden">
             <svg class="lucide" id="profile-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <span id="profile-label" class="profile-label hidden"></span>
           </button>
@@ -93,7 +100,7 @@
               <button type="button" class="ch-btn" data-channel="E-Mail" title="Zeitverzögertes Feedback">E-Mail</button>
             </div>
             <input type="text" id="fb-author" class="author-input" placeholder="Erfasst von" aria-label="Erfasst von" />
-            <input type="text" id="fb-ref" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" />
+            <input type="text" id="fb-ref" class="ref-input" placeholder="Referenz" aria-label="Referenz (optional)" />
             <div id="composer-dur-slot"></div>
           </div>
           <button type="submit" class="btn-primary">Erfassen</button>
@@ -183,7 +190,7 @@
           </div>
 
           <div class="status-group" role="group" aria-label="Optionaler Stundensatz">
-            <input type="number" id="rep-rate" class="ref-input" min="1" max="2000" step="5" placeholder="CHF / h" aria-label="Optionaler Stundensatz in CHF für Einsparungs-Nachweis" style="width:92px;" />
+            <input type="number" id="rep-rate" class="ref-input" min="1" max="2000" step="5" placeholder="CHF Std." aria-label="Optionaler Stundensatz in CHF für Einsparungs-Nachweis" style="width:94px;" />
           </div>
         </div>
       </div>

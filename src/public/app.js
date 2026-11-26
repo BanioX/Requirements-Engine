@@ -25,7 +25,8 @@ const LUCIDE = {
   users: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   gitMerge: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
   check: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
-  minus: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>'
+  minus: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
+  messageSquare: '<svg class="lucide" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
 };
 
 const I18N = {
@@ -44,7 +45,7 @@ const I18N = {
     valUmsatz: 'Umsatz',
     valBindung: 'Kundenbindung',
     authorPlaceholder: 'Erfasst von',
-    refPlaceholder: 'CRM / Ref-ID',
+    refPlaceholder: 'Referenz',
     timePlaceholder: 'Zeit',
     secShort: 'Sek',
     clear: 'Leeren',
@@ -61,6 +62,7 @@ const I18N = {
     inProgress: 'In Arbeit',
     done: 'Erledigt',
     implemented: 'Umgesetzt',
+    inReview: 'In Prüfung',
     reviewed: 'Geprüft',
     rejected: 'Abgelehnt',
     newBadge: 'Neu',
@@ -85,20 +87,22 @@ const I18N = {
     visAll: 'Alle sehen alle',
     visOwn: 'Nur eigene (Chef alle)',
     signIn: 'Anmelden',
-    signInProfile: 'Anmelden / Profil',
+    signInProfile: 'Anmelden',
     register: 'Konto erstellen',
     signOut: 'Abmelden',
     rolesAndUsers: 'Rechte & Benutzer',
     rolesModalTitle: 'Rechtematrix & Benutzer',
-    rolesModalHint: 'Rollen pro Person per Klick zuweisen (mehrere Admins, Manager & Supervisoren möglich).',
+    rolesModalHint: 'Rollen pro Person per Klick zuweisen (mehrere Admins, Manager, Devs & Supervisoren möglich).',
     auditLog: 'Audit-Protokoll',
     auditEmpty: 'Noch keine Einträge im Protokoll.',
     matrixTitle: 'Rechtematrix',
     colRole: 'Rolle',
     colCapture: 'Erfassen',
-    colAllComm: 'Alle Komm.',
-    colDecide: 'Entscheide',
-    colReport: 'Report / Excel',
+    colAllComm: 'Kommentare',
+    colReview: 'Prüfen',
+    colDevelop: 'Umsetzen',
+    colDecide: 'Entscheid',
+    colReport: 'Report',
     colRights: 'Rechte',
     registeredUsers: 'Registrierte Benutzer',
     noAccounts: 'Keine Konten vorhanden.',
@@ -127,17 +131,39 @@ const I18N = {
     noMergeTarget: 'Kein weiteres Thema vorhanden.',
     delete: 'Löschen',
     saveNote: 'Notiz sichern',
-    notePlaceholder: 'Systemlogik / Fachnotiz (intern)…',
+    notePlaceholder: 'Interne Fachnotiz…',
     statusAndReason: 'Status & Begründung',
     rejectBtn: 'Ablehnen',
-    reasonPlaceholder: 'Begründung / Rückmeldung zum Entscheid…',
+    reasonPlaceholder: 'Begründung zum Entscheid…',
     internalOpt: 'Interne Fachnotiz (optional)',
     save: 'Speichern',
     send: 'Senden',
     decisionLbl: 'Entscheid:',
     decFeedbackPlaceholder: 'Kurze Rückmeldung zum Entscheid…',
-    feedbackDecisionKey: 'Rückmeldung / Entscheid',
-    internalNoteKey: 'Systemlogik / Dev',
+    feedbackDecisionKey: 'Entscheid',
+    internalNoteKey: 'Fachnotiz',
+    questionsTitle: 'Rückfragen',
+    askQuestionPlaceholder: 'Rückfrage an den Erfasser schreiben…',
+    askBtn: 'Rückfrage senden',
+    replyPlaceholder: 'Deine Antwort auf diese Rückfrage…',
+    replyBtn: 'Antworten',
+    onlyAuthorHint: 'Nur die Person, welche den Fall erfasst hat, kann antworten.',
+    notifTitle: 'Benachrichtigungen',
+    notifEmpty: 'Keine Benachrichtigungen.',
+    notifMarkAll: 'Alle gelesen',
+    subImplemented: 'Abo: Umgesetzt',
+    subThreshold: 'Abo: Ab 5×',
+    subDecision: 'Abo: Entscheide',
+    subSaved: 'Benachrichtigungs-Abo aktualisiert.',
+    relRelevant: 'Relevant',
+    relIrrelevant: 'Irrelevant',
+    relLogTitle: 'Relevanz-Protokoll',
+    minorityHint: 'Minderheitsstimme erkannt — gezielt nachfragen:',
+    toastRelSaved: 'Relevanz gespeichert.',
+    toastQuestionSent: 'Rückfrage gesendet (+1).',
+    toastReplySent: 'Antwort gesendet (+1).',
+    roleDev: 'Dev',
+    roleOwner: 'Autor',
     copy: 'Kopieren',
     reReview: 'Neu prüfen',
     afterReject: 'nach Ablehnung',
@@ -168,11 +194,11 @@ const I18N = {
     repPeak: 'Spitze',
     repShowAllTopics: 'Alle Themen',
     repOverview: 'Einzelübersicht',
-    repEmptyTable: 'Keine Einträge für diesen Zeitraum / Filter.',
+    repEmptyTable: 'Keine Einträge im gewählten Zeitraum.',
     repSavings: 'Wirkung & Einsparung',
     repImplTopics: 'umgesetzte Themen',
     repSolvedInq: 'gelöste Anfragen',
-    repPressure: 'Wiedervorlage & Handlungsdruck (trotz Ablehnung weiter gefragt / unzufrieden)',
+    repPressure: 'Wiedervorlage & Handlungsdruck',
     repAfterwards: 'danach',
     repCredits: 'Ideengeber & Credits',
     repIdeaOne: 'Idee',
@@ -229,7 +255,7 @@ const I18N = {
     valUmsatz: 'Revenue',
     valBindung: 'Retention',
     authorPlaceholder: 'Logged by',
-    refPlaceholder: 'CRM / Ref ID',
+    refPlaceholder: 'Reference',
     timePlaceholder: 'Time',
     secShort: 'Sec',
     clear: 'Clear',
@@ -246,6 +272,7 @@ const I18N = {
     inProgress: 'In progress',
     done: 'Done',
     implemented: 'Implemented',
+    inReview: 'In review',
     reviewed: 'Reviewed',
     rejected: 'Rejected',
     newBadge: 'New',
@@ -270,20 +297,22 @@ const I18N = {
     visAll: 'All visible',
     visOwn: 'Own only (Admin all)',
     signIn: 'Sign in',
-    signInProfile: 'Sign in / Profile',
+    signInProfile: 'Sign in',
     register: 'Create account',
     signOut: 'Sign out',
     rolesAndUsers: 'Roles & Users',
     rolesModalTitle: 'Roles & Permissions',
-    rolesModalHint: 'Assign roles per person with one click (multiple admins, managers & supervisors supported).',
+    rolesModalHint: 'Assign roles per person with one click (multiple admins, managers, devs & supervisors supported).',
     auditLog: 'Audit Log',
     auditEmpty: 'No audit log entries yet.',
     matrixTitle: 'Permission Matrix',
     colRole: 'Role',
     colCapture: 'Capture',
-    colAllComm: 'All Comm.',
-    colDecide: 'Decisions',
-    colReport: 'Report / Excel',
+    colAllComm: 'Comments',
+    colReview: 'Review',
+    colDevelop: 'Build',
+    colDecide: 'Decide',
+    colReport: 'Report',
     colRights: 'Rights',
     registeredUsers: 'Registered Users',
     noAccounts: 'No accounts yet.',
@@ -312,17 +341,39 @@ const I18N = {
     noMergeTarget: 'No other topic available.',
     delete: 'Delete',
     saveNote: 'Save note',
-    notePlaceholder: 'System logic / internal note…',
+    notePlaceholder: 'Internal note…',
     statusAndReason: 'Status & Decision',
     rejectBtn: 'Reject',
-    reasonPlaceholder: 'Decision reason / feedback…',
+    reasonPlaceholder: 'Reason for decision…',
     internalOpt: 'Internal note (optional)',
     save: 'Save',
     send: 'Send',
     decisionLbl: 'Decision:',
     decFeedbackPlaceholder: 'Brief feedback on this decision…',
-    feedbackDecisionKey: 'Feedback / Decision',
-    internalNoteKey: 'System logic / Dev',
+    feedbackDecisionKey: 'Decision',
+    internalNoteKey: 'Technical note',
+    questionsTitle: 'Questions',
+    askQuestionPlaceholder: 'Ask the author a clarification question…',
+    askBtn: 'Send question',
+    replyPlaceholder: 'Your answer to this question…',
+    replyBtn: 'Reply',
+    onlyAuthorHint: 'Only the person who logged this case can reply.',
+    notifTitle: 'Notifications',
+    notifEmpty: 'No notifications.',
+    notifMarkAll: 'Mark all read',
+    subImplemented: 'Alert: Done',
+    subThreshold: 'Alert: 5×+',
+    subDecision: 'Alert: Decisions',
+    subSaved: 'Notification alert updated.',
+    relRelevant: 'Relevant',
+    relIrrelevant: 'Irrelevant',
+    relLogTitle: 'Relevance Log',
+    minorityHint: 'Minority opinion detected — worth asking directly:',
+    toastRelSaved: 'Relevance recorded.',
+    toastQuestionSent: 'Question sent (+1).',
+    toastReplySent: 'Reply sent (+1).',
+    roleDev: 'Dev',
+    roleOwner: 'Author',
     copy: 'Copy',
     reReview: 'Re-review',
     afterReject: 'after rejection',
@@ -353,11 +404,11 @@ const I18N = {
     repPeak: 'Peak',
     repShowAllTopics: 'All topics',
     repOverview: 'Detailed Overview',
-    repEmptyTable: 'No entries for this period / filter.',
+    repEmptyTable: 'No entries in selected period.',
     repSavings: 'Impact & Savings',
     repImplTopics: 'implemented topics',
     repSolvedInq: 'resolved inquiries',
-    repPressure: 'Re-review & Pressure (recurring after rejection / low approval)',
+    repPressure: 'Re-review & Pressure',
     repAfterwards: 'afterwards',
     repCredits: 'Contributors & Credits',
     repIdeaOne: 'idea',
@@ -408,8 +459,24 @@ function t(key) {
 function roleLabelFor(roleId) {
   if (roleId === 'admin') return t('roleAdmin');
   if (roleId === 'manager') return t('roleManager');
+  if (roleId === 'dev') return t('roleDev');
   if (roleId === 'supervisor') return t('roleSupervisor');
+  if (roleId === 'owner') return t('roleOwner');
   return t('roleUser');
+}
+
+function roleBadgeHtml(roleId) {
+  const cls =
+    roleId === 'dev'
+      ? 'tag-role-dev'
+      : roleId === 'supervisor'
+        ? 'tag-role-supervisor'
+        : roleId === 'owner'
+          ? 'tag-role-owner'
+          : roleId === 'admin' || roleId === 'manager'
+            ? 'tag-blue'
+            : '';
+  return `<span class="tag-mini ${cls}">${esc(roleLabelFor(roleId))}</span>`;
 }
 
 function channelDisplay(ch) {
@@ -432,6 +499,7 @@ function statusDisplay(s) {
   if (s === 'Umgesetzt') return t('done');
   if (s === 'Abgelehnt') return t('rejected');
   if (s === 'In Arbeit' || s === 'Angenommen') return t('inProgress');
+  if (s === 'In Prüfung') return t('inReview');
   if (s === 'Geprüft' || s === 'Bereit') return t('reviewed');
   if (s === 'Offen') return t('open');
   if (s === 'Alle') return t('all');
@@ -465,6 +533,12 @@ const state = {
   commentsVisibility: 'all', // 'all' | 'own_only'
   expandedId: null,
   expandedMentions: [],
+  expandedQuestions: [],
+  expandedIsOwner: false,
+  expandedRelevance: null,
+  notifications: [],
+  unreadNotifs: 0,
+  subscription: { onImplemented: true, onThreshold: false, thresholdCount: 5, onDecision: false },
   activeMentionId: null,
   showAllMentions: false,
   mergeSourceId: null,
@@ -796,11 +870,97 @@ function canViewReports() {
 }
 
 function canSeeAllCommentsUi() {
-  return ['admin', 'manager', 'supervisor'].includes(state.user?.role);
+  return ['admin', 'manager', 'dev', 'supervisor'].includes(state.user?.role);
+}
+
+function canReviewUi() {
+  return ['admin', 'manager', 'dev', 'supervisor'].includes(state.user?.role) || !state.hasAdmin;
+}
+
+function canDevelopUi() {
+  return ['admin', 'manager', 'dev'].includes(state.user?.role) || !state.hasAdmin;
 }
 
 function canDecideUi() {
-  return ['admin', 'manager', 'supervisor'].includes(state.user?.role) || !state.hasAdmin;
+  return ['admin', 'manager'].includes(state.user?.role) || !state.hasAdmin;
+}
+
+async function loadNotifications() {
+  try {
+    const res = await api('/api/notifications');
+    state.notifications = Array.isArray(res.items) ? res.items : [];
+    state.unreadNotifs = Number(res.unreadCount) || 0;
+    if (res.subscription) {
+      state.subscription = res.subscription;
+    }
+    renderNotifications();
+  } catch {
+    // still fail silently on offline
+  }
+}
+
+function renderNotifications() {
+  const badge = document.getElementById('notif-badge');
+  const pop = document.getElementById('notif-popover');
+  if (badge) {
+    badge.textContent = String(state.unreadNotifs > 9 ? '9+' : state.unreadNotifs);
+    badge.classList.toggle('hidden', state.unreadNotifs <= 0);
+  }
+  if (!pop) return;
+  const sub = state.subscription || { onImplemented: true, onThreshold: false, thresholdCount: 5, onDecision: false };
+  const subBarHtml = `
+    <div class="sub-bar" role="group" aria-label="Smart Alerts">
+      <button type="button" class="sub-pill js-sub-toggle ${sub.onImplemented ? 'active' : ''}" data-sub="onImplemented">${esc(t('subImplemented'))}</button>
+      <button type="button" class="sub-pill js-sub-toggle ${sub.onThreshold ? 'active' : ''}" data-sub="onThreshold">${esc(t('subThreshold'))}</button>
+      <button type="button" class="sub-pill js-sub-toggle ${sub.onDecision ? 'active' : ''}" data-sub="onDecision">${esc(t('subDecision'))}</button>
+    </div>
+  `;
+  const rows =
+    state.notifications.length === 0
+      ? `<div style="font-size:0.8rem; color:var(--silver-3); padding:8px 4px;">${esc(t('notifEmpty'))}</div>`
+      : state.notifications
+          .map((n) => {
+            const dt = fmtDateCH(n.created_at);
+            const tm = n.created_at ? new Date(n.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `
+              <button type="button" class="notif-item ${n.is_read ? '' : 'unread'} js-notif-open" data-nid="${n.id}" data-story="${n.story_id}">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:0.72rem; color:var(--silver-3);">
+                  <span style="display:inline-flex; align-items:center; gap:5px;">
+                    ${roleBadgeHtml(n.sender_role)}
+                    <strong>${esc(n.sender_name || '')}</strong>
+                  </span>
+                  <span>${esc(dt)} ${esc(tm)}</span>
+                </div>
+                <div style="font-size:0.79rem; font-weight:600; color:var(--ink);">${esc(n.story_title)}</div>
+                <div style="font-size:0.77rem; color:var(--silver-2);">${esc(n.message)}</div>
+              </button>
+            `;
+          })
+          .join('');
+  pop.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding-bottom:6px; border-bottom:1px solid var(--line);">
+      <strong style="font-size:0.82rem; color:var(--ink);">${esc(t('notifTitle'))}</strong>
+      ${state.unreadNotifs > 0 ? `<button type="button" class="text-link js-notif-read-all">${esc(t('notifMarkAll'))}</button>` : ''}
+    </div>
+    ${subBarHtml}
+    <div style="display:flex; flex-direction:column; gap:6px;">${rows}</div>
+  `;
+}
+
+async function openStoryDrawer(storyId) {
+  state.expandedId = storyId;
+  state.showAllMentions = false;
+  state.pendingStatus = null;
+  const [mentions, qData, relData] = await Promise.all([
+    api(`/api/stories/${storyId}/mentions`).catch(() => []),
+    api(`/api/stories/${storyId}/questions`).catch(() => ({ isOwner: false, questions: [] })),
+    canReviewUi() ? api(`/api/stories/${storyId}/relevance`).catch(() => null) : Promise.resolve(null)
+  ]);
+  state.expandedMentions = mentions;
+  state.activeMentionId = mentions[0]?.id ?? null;
+  state.expandedQuestions = Array.isArray(qData.questions) ? qData.questions : [];
+  state.expandedIsOwner = Boolean(qData.isOwner);
+  state.expandedRelevance = relData;
 }
 
 function renderAuthState() {
@@ -906,9 +1066,11 @@ async function openRolesModal(tab = state.rolesTab || 'matrix') {
         const p = r.permissions;
         return `
           <tr>
-            <td>${esc(roleLabelFor(r.id))}</td>
+            <td>${roleBadgeHtml(r.id)}</td>
             <td>${p.captureFeedback ? LUCIDE.check : LUCIDE.minus}</td>
             <td>${p.seeAllComments ? LUCIDE.check : '<span style="font-size:0.7rem; color:var(--silver-3);">Opt.</span>'}</td>
+            <td>${p.reviewStories ? LUCIDE.check : LUCIDE.minus}</td>
+            <td>${p.developStories ? LUCIDE.check : LUCIDE.minus}</td>
             <td>${p.decideStories ? LUCIDE.check : LUCIDE.minus}</td>
             <td>${p.viewReports ? LUCIDE.check : LUCIDE.minus}</td>
             <td>${p.manageUsers ? LUCIDE.check : LUCIDE.minus}</td>
@@ -958,6 +1120,8 @@ async function openRolesModal(tab = state.rolesTab || 'matrix') {
             <th>${esc(t('colRole'))}</th>
             <th>${esc(t('colCapture'))}</th>
             <th>${esc(t('colAllComm'))}</th>
+            <th>${esc(t('colReview'))}</th>
+            <th>${esc(t('colDevelop'))}</th>
             <th>${esc(t('colDecide'))}</th>
             <th>${esc(t('colReport'))}</th>
             <th>${esc(t('colRights'))}</th>
@@ -1036,6 +1200,7 @@ function statusBadge(status) {
   if (status === 'Umgesetzt') return `<span class="tag-mini tag-green">${esc(t('done'))}</span>`;
   if (status === 'Abgelehnt') return `<span class="tag-mini tag-red">${esc(t('rejected'))}</span>`;
   if (status === 'In Arbeit' || status === 'Angenommen') return `<span class="tag-mini tag-blue">${esc(t('inProgress'))}</span>`;
+  if (status === 'In Prüfung') return `<span class="tag-mini tag-amber">${esc(t('inReview'))}</span>`;
   if (status === 'Geprüft' || status === 'Bereit') return `<span class="tag-mini">${esc(t('reviewed'))}</span>`;
   return `<span class="tag-mini">${esc(t('newBadge'))}</span>`;
 }
@@ -1043,7 +1208,7 @@ function statusBadge(status) {
 function loopBars(status) {
   if (status === 'Abgelehnt') {
     return `
-      <div class="loop-bars" title="Eingegangen → Geprüft → Abgelehnt">
+      <div class="loop-bars" title="${esc(statusDisplay(status))}">
         <div class="loop-seg on"></div>
         <div class="loop-seg on"></div>
         <div class="loop-seg on-red"></div>
@@ -1052,10 +1217,16 @@ function loopBars(status) {
     `;
   }
   const rank =
-    status === 'Umgesetzt' ? 4 : status === 'In Arbeit' || status === 'Angenommen' ? 3 : status === 'Geprüft' || status === 'Bereit' ? 2 : 1;
+    status === 'Umgesetzt'
+      ? 4
+      : status === 'In Arbeit' || status === 'Angenommen'
+        ? 3
+        : status === 'In Prüfung' || status === 'Geprüft' || status === 'Bereit'
+          ? 2
+          : 1;
   const cls = rank === 4 ? 'on-green' : 'on';
   return `
-    <div class="loop-bars" title="Status: ${esc(status)}">
+    <div class="loop-bars" title="Status: ${esc(statusDisplay(status))}">
       ${[1, 2, 3, 4].map((n) => `<div class="loop-seg ${n <= rank ? cls : ''}"></div>`).join('')}
     </div>
   `;
@@ -1220,7 +1391,7 @@ async function loadIdeas() {
     ideas = ideas.filter((i) => i.feasibility === state.ampel);
   }
   if (state.mode === 'active') {
-    ideas = ideas.filter((i) => ['In Arbeit', 'Angenommen', 'Geprüft'].includes(i.status));
+    ideas = ideas.filter((i) => ['In Prüfung', 'In Arbeit', 'Angenommen', 'Geprüft'].includes(i.status));
   } else if (state.mode === 'done') {
     ideas = ideas.filter((i) => ['Umgesetzt', 'Abgelehnt'].includes(i.status));
   }
@@ -1444,6 +1615,8 @@ async function loadIdeas() {
         `
         : '';
 
+      const allowReview = canReviewUi();
+      const allowDevelop = canDevelopUi();
       const allowDecide = canDecideUi();
       const mergeTargets =
         expanded && state.mergeSourceId === item.id
@@ -1451,7 +1624,7 @@ async function loadIdeas() {
           : [];
 
       const mergeBoxHtml =
-        expanded && state.mergeSourceId === item.id && allowDecide
+        expanded && state.mergeSourceId === item.id && allowReview
           ? `
             <div class="case-preview">
               <div class="case-preview-top">
@@ -1474,14 +1647,112 @@ async function loadIdeas() {
           `
           : '';
 
+      const questionsList = expanded ? state.expandedQuestions : [];
+      const qaActivity = Number(item.question_activity_count) || 0;
+      const qaChip =
+        qaActivity > 0
+          ? `<span class="tag-mini tag-amber" style="display:inline-flex; align-items:center; gap:4px;">${LUCIDE.messageSquare} ${qaActivity}</span>`
+          : '';
+
+      const qaSectionHtml =
+        expanded && (questionsList.length > 0 || allowReview)
+          ? `
+            <div class="qa-section">
+              <div class="drawer-label" style="margin:0;">${esc(t('questionsTitle'))} (${questionsList.reduce((acc, q) => acc + (q.reply_body ? 2 : 1), 0)})</div>
+              ${questionsList
+                .map((q) => {
+                  const qDate = fmtDateCH(q.created_at);
+                  const rDate = q.replied_at ? fmtDateCH(q.replied_at) : '';
+                  const replyHtml = q.reply_body
+                    ? `
+                      <div class="qa-reply">
+                        <div class="qa-head">
+                          <span style="display:inline-flex; align-items:center; gap:6px;">${roleBadgeHtml('owner')} <strong>${esc(q.reply_author || t('roleOwner'))}</strong></span>
+                          <span>${esc(rDate)}</span>
+                        </div>
+                        <p class="qa-body">${esc(q.reply_body)}</p>
+                      </div>
+                    `
+                    : state.expandedIsOwner
+                      ? `
+                        <form class="decision-form js-qa-reply" data-story="${item.id}" data-qid="${q.id}" style="margin-top:2px;">
+                          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <input type="text" name="replyBody" required minlength="2" placeholder="${esc(t('replyPlaceholder'))}" style="flex:1 1 200px;" />
+                            <button type="submit" class="st-btn active">${esc(t('replyBtn'))}</button>
+                          </div>
+                        </form>
+                      `
+                      : `<div class="qa-lock-hint">${esc(t('onlyAuthorHint'))}</div>`;
+
+                  return `
+                    <div class="qa-card">
+                      <div class="qa-head">
+                        <span style="display:inline-flex; align-items:center; gap:6px;">${roleBadgeHtml(q.author_role)} <strong>${esc(q.author_name || '')}</strong></span>
+                        <span>${esc(qDate)}</span>
+                      </div>
+                      <p class="qa-body">${esc(q.body)}</p>
+                      ${replyHtml}
+                    </div>
+                  `;
+                })
+                .join('')}
+              ${
+                allowReview
+                  ? `
+                    <form class="decision-form js-qa-ask" data-story="${item.id}">
+                      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                        ${roleBadgeHtml(state.user?.role || 'supervisor')}
+                        <input type="text" name="body" required minlength="3" placeholder="${esc(t('askQuestionPlaceholder'))}" style="flex:1 1 200px;" />
+                        <button type="submit" class="st-btn active">${esc(t('askBtn'))}</button>
+                      </div>
+                    </form>
+                  `
+                  : ''
+              }
+            </div>
+          `
+          : '';
+
+      const relData = expanded ? state.expandedRelevance : null;
+      const relLogHtml =
+        expanded && allowReview && relData && relData.votes && relData.votes.length > 0
+          ? (() => {
+              const upNames = relData.votes.filter((v) => v.vote === 'relevant').map((v) => v.voter_name || 'Team');
+              const downNames = relData.votes.filter((v) => v.vote === 'irrelevant').map((v) => v.voter_name || 'Team');
+              const minorityHtml = relData.minority
+                ? `<div class="minority-banner">${esc(t('minorityHint'))} <strong>${esc(relData.minority.voters.map((v) => v.voter_name || 'Team').join(', '))}</strong> (${esc(relData.minority.side === 'relevant' ? t('relRelevant') : t('relIrrelevant'))})</div>`
+                : '';
+              return `
+                <div class="rel-log-box">
+                  <div class="drawer-label" style="margin:0;">${esc(t('relLogTitle'))}</div>
+                  ${minorityHtml}
+                  ${upNames.length > 0 ? `<div><strong style="color:var(--green);">${esc(t('relRelevant'))} (${upNames.length}):</strong> ${esc(upNames.join(', '))}</div>` : ''}
+                  ${downNames.length > 0 ? `<div><strong style="color:var(--red);">${esc(t('relIrrelevant'))} (${downNames.length}):</strong> ${esc(downNames.join(', '))}</div>` : ''}
+                </div>
+              `;
+            })()
+          : '';
+
+      const relUp = Number(item.relevance_up) || 0;
+      const relDown = Number(item.relevance_down) || 0;
+      const myRel = item.my_relevance_vote || '';
+      const relVoteBarHtml = `
+        <span class="rel-vote-bar">
+          <button type="button" class="rel-btn js-rel-vote ${myRel === 'relevant' ? 'is-up' : ''}" data-id="${item.id}" data-vote="relevant" title="${esc(t('relRelevant'))}">${LUCIDE.thumbsUp} ${relUp}</button>
+          <button type="button" class="rel-btn js-rel-vote ${myRel === 'irrelevant' ? 'is-down' : ''}" data-id="${item.id}" data-vote="irrelevant" title="${esc(t('relIrrelevant'))}">${LUCIDE.thumbsDown} ${relDown}</button>
+        </span>
+      `;
+
       const drawerHtml = expanded
         ? `
           <div class="idea-drawer">
             ${tilesHtml}
+            ${relLogHtml}
+            ${qaSectionHtml}
 
             <div class="drawer-row">
               ${
-                allowDecide
+                allowReview
                   ? `<div class="feas-group">
                       <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>${esc(t('easy'))}</button>
                       <button type="button" class="feas-btn js-feas ${feas === 'mittel' ? 'active-mittel' : ''}" data-id="${item.id}" data-feas="mittel"><span class="dot-sm dot-amber"></span>${esc(t('medium'))}</button>
@@ -1490,37 +1761,43 @@ async function loadIdeas() {
                   : '<div></div>'
               }
               <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                ${allowDecide && state.allStoriesCache.length > 1 ? `<button type="button" class="text-link js-merge-open" data-id="${item.id}">${LUCIDE.gitMerge} ${esc(t('merge'))}</button>` : ''}
+                ${allowReview && state.allStoriesCache.length > 1 ? `<button type="button" class="text-link js-merge-open" data-id="${item.id}">${LUCIDE.gitMerge} ${esc(t('merge'))}</button>` : ''}
                 ${allowDecide ? `<button type="button" class="text-link danger js-delete" data-id="${item.id}">${LUCIDE.trash} ${esc(t('delete'))}</button>` : ''}
               </div>
             </div>
 
             ${mergeBoxHtml}
 
-            <form class="decision-form js-notes" data-id="${item.id}">
-              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="${esc(t('notePlaceholder'))}" />
-              <div style="display:flex; justify-content:flex-end;">
-                <button type="submit" class="st-btn active">${esc(t('saveNote'))}</button>
-              </div>
-            </form>
+            ${
+              allowReview
+                ? `
+                  <form class="decision-form js-notes" data-id="${item.id}">
+                    <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="${esc(t('notePlaceholder'))}" />
+                    <div style="display:flex; justify-content:flex-end;">
+                      <button type="submit" class="st-btn active">${esc(t('saveNote'))}</button>
+                    </div>
+                  </form>
+                `
+                : ''
+            }
 
             ${
-              allowDecide
+              allowReview || allowDevelop || allowDecide
                 ? `<div>
                     <div class="drawer-label">${esc(t('statusAndReason'))}</div>
                     <div class="feas-group">
-                      <button type="button" class="st-btn js-pick ${pending?.status === 'Geprüft' ? 'active' : ''}" data-id="${item.id}" data-status="Geprüft">${esc(t('reviewed'))}</button>
-                      <button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">${esc(t('inProgress'))}</button>
-                      <button type="button" class="st-btn js-pick ${pending?.status === 'Umgesetzt' ? 'active' : ''}" data-id="${item.id}" data-status="Umgesetzt">${esc(t('done'))}</button>
-                      <button type="button" class="st-btn js-pick ${pending?.status === 'Abgelehnt' ? 'active' : ''}" data-id="${item.id}" data-status="Abgelehnt">${esc(t('rejectBtn'))}</button>
+                      ${allowReview ? `<button type="button" class="st-btn js-pick ${pending?.status === 'In Prüfung' ? 'active' : ''}" data-id="${item.id}" data-status="In Prüfung">${esc(t('inReview'))}</button>` : ''}
+                      ${allowDevelop ? `<button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">${esc(t('inProgress'))}</button>` : ''}
+                      ${allowDevelop ? `<button type="button" class="st-btn js-pick ${pending?.status === 'Umgesetzt' ? 'active' : ''}" data-id="${item.id}" data-status="Umgesetzt">${esc(t('done'))}</button>` : ''}
+                      ${allowDecide ? `<button type="button" class="st-btn js-pick ${pending?.status === 'Abgelehnt' ? 'active' : ''}" data-id="${item.id}" data-status="Abgelehnt">${esc(t('rejectBtn'))}</button>` : ''}
                     </div>
                     ${
                       pending
                         ? `
                           <form class="decision-form js-decide" data-id="${item.id}" data-status="${esc(pending.status)}" style="margin-top:10px;">
-                            <textarea name="publicResponse" rows="2" required placeholder="${esc(t('reasonPlaceholder'))}"></textarea>
+                            <textarea name="publicResponse" rows="2" required minlength="5" placeholder="${esc(t('reasonPlaceholder'))}"></textarea>
                             <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="${esc(t('internalOpt'))}" />
-                            <div><button type="submit" class="btn-primary">${esc(t('save'))}</button></div>
+                            <div><button type="submit" class="btn-primary">${esc(statusDisplay(pending.status))} · ${esc(t('save'))}</button></div>
                           </form>
                         `
                         : ''
@@ -1533,7 +1810,7 @@ async function loadIdeas() {
         : '';
 
       return `
-        <article class="idea-card ${state.freshId === item.id ? 'fresh' : ''}">
+        <article class="idea-card ${state.freshId === item.id ? 'fresh' : ''}" data-story-card="${item.id}">
           <div class="idea-row">
             <button type="button" class="vote-box ${voted || effortOpen ? 'voted' : ''} js-vote" data-id="${item.id}" title="${esc(t('voteTitle'))}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
@@ -1543,6 +1820,7 @@ async function loadIdeas() {
               <div class="card-head">
                 <h2 class="idea-title">${esc(item.title)}</h2>
                 <div class="head-meta">
+                  ${qaChip}
                   ${pressureBadge}
                   ${ampelDot(feas)}
                   ${channel ? `<span>${esc(channelDisplay(channel))}</span>` : ''}
@@ -1555,6 +1833,7 @@ async function loadIdeas() {
                 ${valueChips}
                 ${timeChip}
                 ${loopFollowupChip}
+                ${relVoteBarHtml}
               </div>
               ${effortBarHtml}
               ${refsLine}
@@ -1869,7 +2148,7 @@ async function loadReport() {
               <div class="pressure-item">
                 <span><strong>${esc(p.title)}</strong> (${esc(statusDisplay(p.status))})</span>
                 <span style="white-space:nowrap; color:var(--red); font-weight:600; display:inline-flex; align-items:center; gap:5px;">
-                  ${p.postDecisionMentions > 0 ? `+${p.postDecisionMentions}× ${esc(t('repAfterwards'))}` : `${p.totalMentions}× total`} · ${LUCIDE.thumbsUp} ${p.decisionUp} / ${LUCIDE.thumbsDown} ${p.decisionDown}
+                  ${p.postDecisionMentions > 0 ? `+${p.postDecisionMentions}× ${esc(t('repAfterwards'))}` : `${p.totalMentions}× total`} · ${LUCIDE.thumbsUp} ${p.decisionUp} · ${LUCIDE.thumbsDown} ${p.decisionDown}
                 </span>
               </div>
             `
@@ -2096,9 +2375,57 @@ function init() {
     });
   });
 
+  // Benachrichtigungen (Glocke oben rechts)
+  document.getElementById('btn-notif')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    document.getElementById('profile-popover')?.classList.add('hidden');
+    const pop = document.getElementById('notif-popover');
+    pop?.classList.toggle('hidden');
+    if (pop && !pop.classList.contains('hidden')) {
+      loadNotifications();
+    }
+  });
+
+  document.getElementById('notif-popover')?.addEventListener('click', async (ev) => {
+    const subBtn = ev.target.closest('.js-sub-toggle');
+    if (subBtn) {
+      ev.stopPropagation();
+      const key = subBtn.dataset.sub;
+      const nextSub = { ...state.subscription, [key]: !state.subscription[key] };
+      try {
+        state.subscription = await api('/api/notifications/subscription', {
+          method: 'PUT',
+          body: JSON.stringify(nextSub)
+        });
+        renderNotifications();
+        showToast(t('subSaved'));
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
+    if (ev.target.closest('.js-notif-read-all')) {
+      await api('/api/notifications/read', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
+      await loadNotifications();
+      return;
+    }
+    const item = ev.target.closest('.js-notif-open');
+    if (item) {
+      const nid = Number(item.dataset.nid);
+      const storyId = Number(item.dataset.story);
+      document.getElementById('notif-popover')?.classList.add('hidden');
+      await api('/api/notifications/read', { method: 'POST', body: JSON.stringify({ id: nid }) }).catch(() => {});
+      setView('board');
+      await openStoryDrawer(storyId);
+      await Promise.all([loadIdeas(), loadNotifications()]);
+      document.querySelector(`[data-story-card="${storyId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
   // Profil-Button, Account-Popover & Login-Maske
   document.getElementById('btn-profile').addEventListener('click', (ev) => {
     ev.stopPropagation();
+    document.getElementById('notif-popover')?.classList.add('hidden');
     if (state.user) {
       document.getElementById('profile-popover').classList.toggle('hidden');
     } else {
@@ -2122,10 +2449,12 @@ function init() {
       state.user = null;
       state.expandedId = null;
       state.expandedMentions = [];
+      state.expandedQuestions = [];
+      state.expandedIsOwner = false;
       document.getElementById('profile-popover').classList.add('hidden');
       renderAuthState();
       showToast(t('toastSignedOut'));
-      await loadIdeas();
+      await Promise.all([loadIdeas(), loadNotifications()]);
     }
   });
 
@@ -2174,6 +2503,9 @@ function init() {
     if (!ev.target.closest('.profile-wrap')) {
       document.getElementById('profile-popover')?.classList.add('hidden');
     }
+    if (!ev.target.closest('.notif-wrap')) {
+      document.getElementById('notif-popover')?.classList.add('hidden');
+    }
   });
 
   document.getElementById('btn-close-auth').addEventListener('click', closeAuthModal);
@@ -2210,9 +2542,9 @@ function init() {
       if (res.hasAdmin || res.user?.role === 'admin') state.hasAdmin = true;
       closeAuthModal();
       renderAuthState();
-      showToast(`Angemeldet als ${res.user.displayName}${res.user.role === 'admin' ? ' (Admin)' : ''}.`);
+      showToast(`Angemeldet als ${res.user.displayName} (${roleLabelFor(res.user.role)}).`);
       state.expandedId = null;
-      await loadIdeas();
+      await Promise.all([loadIdeas(), loadNotifications()]);
     } catch (err) {
       errBox.textContent = err.message;
       errBox.classList.remove('hidden');
@@ -2462,6 +2794,27 @@ function init() {
       return;
     }
 
+    const relBtn = ev.target.closest('.js-rel-vote');
+    if (relBtn) {
+      ev.stopPropagation();
+      const id = Number(relBtn.dataset.id);
+      const vote = relBtn.dataset.vote;
+      try {
+        await api(`/api/stories/${id}/relevance`, {
+          method: 'POST',
+          body: JSON.stringify({ vote })
+        });
+        if (state.expandedId === id && canReviewUi()) {
+          state.expandedRelevance = await api(`/api/stories/${id}/relevance`).catch(() => null);
+        }
+        showToast(t('toastRelSaved'));
+        await loadIdeas();
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
+
     const decVoteBtn = ev.target.closest('.js-dec-vote');
     if (decVoteBtn) {
       ev.stopPropagation();
@@ -2507,19 +2860,33 @@ function init() {
 
     const feasBtn = ev.target.closest('.js-feas');
     if (feasBtn) {
-      const isAlreadyActive = feasBtn.classList.contains(`active-${feasBtn.dataset.feas}`);
-      await api(`/api/stories/${feasBtn.dataset.id}/feasibility`, {
-        method: 'PATCH',
-        body: JSON.stringify({ feasibility: isAlreadyActive ? 'unbewertet' : feasBtn.dataset.feas })
-      });
-      await loadIdeas();
+      ev.stopPropagation();
+      try {
+        const isAlreadyActive = feasBtn.classList.contains(`active-${feasBtn.dataset.feas}`);
+        await api(`/api/stories/${feasBtn.dataset.id}/feasibility`, {
+          method: 'PATCH',
+          body: JSON.stringify({ feasibility: isAlreadyActive ? 'unbewertet' : feasBtn.dataset.feas })
+        });
+        await loadIdeas();
+      } catch (err) {
+        showToast(err.message);
+      }
       return;
     }
 
     const pickBtn = ev.target.closest('.js-pick');
     if (pickBtn) {
-      state.pendingStatus = { id: Number(pickBtn.dataset.id), status: pickBtn.dataset.status };
+      ev.stopPropagation();
+      const id = Number(pickBtn.dataset.id);
+      const nextStatus = pickBtn.dataset.status;
+      state.pendingStatus =
+        state.pendingStatus && state.pendingStatus.id === id && state.pendingStatus.status === nextStatus
+          ? null
+          : { id, status: nextStatus };
       await loadIdeas();
+      if (state.pendingStatus?.id === id) {
+        document.querySelector(`.js-decide[data-id="${id}"] textarea[name="publicResponse"]`)?.focus();
+      }
       return;
     }
 
@@ -2529,13 +2896,12 @@ function init() {
       if (state.expandedId === id) {
         state.expandedId = null;
         state.expandedMentions = [];
+        state.expandedQuestions = [];
+        state.expandedIsOwner = false;
         state.activeMentionId = null;
         state.showAllMentions = false;
       } else {
-        state.expandedId = id;
-        state.showAllMentions = false;
-        state.expandedMentions = await api(`/api/stories/${id}/mentions`).catch(() => []);
-        state.activeMentionId = state.expandedMentions[0]?.id ?? null;
+        await openStoryDrawer(id);
       }
       state.pendingStatus = null;
       await loadIdeas();
@@ -2607,16 +2973,59 @@ function init() {
       return;
     }
 
+    const qaAskForm = ev.target.closest('.js-qa-ask');
+    if (qaAskForm) {
+      ev.preventDefault();
+      const storyId = Number(qaAskForm.dataset.story);
+      const bodyText = String(new FormData(qaAskForm).get('body') || '').trim();
+      try {
+        await api(`/api/stories/${storyId}/questions`, {
+          method: 'POST',
+          body: JSON.stringify({ body: bodyText })
+        });
+        await openStoryDrawer(storyId);
+        showToast(t('toastQuestionSent'));
+        await Promise.all([loadIdeas(), loadNotifications()]);
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
+
+    const qaReplyForm = ev.target.closest('.js-qa-reply');
+    if (qaReplyForm) {
+      ev.preventDefault();
+      const storyId = Number(qaReplyForm.dataset.story);
+      const qid = Number(qaReplyForm.dataset.qid);
+      const replyBody = String(new FormData(qaReplyForm).get('replyBody') || '').trim();
+      try {
+        await api(`/api/stories/${storyId}/questions/${qid}/reply`, {
+          method: 'POST',
+          body: JSON.stringify({ replyBody })
+        });
+        await openStoryDrawer(storyId);
+        showToast(t('toastReplySent'));
+        await Promise.all([loadIdeas(), loadNotifications()]);
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
+
     const notesForm = ev.target.closest('.js-notes');
     if (notesForm) {
       ev.preventDefault();
       const fd = new FormData(notesForm);
-      await api(`/api/stories/${notesForm.dataset.id}/notes`, {
-        method: 'PATCH',
-        body: JSON.stringify({ internalNote: fd.get('internalNote') })
-      });
-      showToast(t('toastNoteSaved'));
-      await loadIdeas();
+      try {
+        await api(`/api/stories/${notesForm.dataset.id}/notes`, {
+          method: 'PATCH',
+          body: JSON.stringify({ internalNote: fd.get('internalNote') })
+        });
+        showToast(t('toastNoteSaved'));
+        await loadIdeas();
+      } catch (err) {
+        showToast(err.message);
+      }
       return;
     }
 
@@ -2642,10 +3051,12 @@ function init() {
   });
 
   applyLanguageToStaticUi();
-  loadHealth();
-  loadAuthAndSettings();
-  loadIdeas();
+  (async () => {
+    await loadAuthAndSettings();
+    await Promise.all([loadHealth(), loadIdeas(), loadNotifications()]);
+  })();
   setInterval(loadHealth, 20000);
+  setInterval(loadNotifications, 15000);
 }
 
 init();

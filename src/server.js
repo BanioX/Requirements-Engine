@@ -1,4 +1,5 @@
 import { createApp } from './app.js';
+import { createSessionSecret } from './auth.js';
 import { createPool, createPostgresStore, initDatabase } from './db.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -23,7 +24,18 @@ async function start() {
   await initDatabase(pool);
 
   const store = createPostgresStore(pool);
-  const app = createApp({ store });
+
+  // Persistentes Session-Signing-Secret in PostgreSQL app_meta, damit Logins Container-Neustarts & Auto-Deploys überstehen
+  let sessionSecret = String(process.env.SESSION_SECRET || '').trim();
+  if (sessionSecret.length < 16) {
+    sessionSecret = await store.getSetting('session_secret', '');
+    if (sessionSecret.length < 16) {
+      sessionSecret = createSessionSecret();
+      await store.setSetting('session_secret', sessionSecret);
+    }
+  }
+
+  const app = createApp({ store, sessionSecret });
 
   const server = app.listen(PORT, HOST, () => {
     console.log(

@@ -9,11 +9,12 @@ import crypto from 'node:crypto';
 const SESSION_COOKIE = 'os_session';
 const SESSION_TTL_SEC = 7 * 24 * 60 * 60; // 7 Tage
 
-export const VALID_ROLES = ['user', 'supervisor', 'manager', 'admin'];
+export const VALID_ROLES = ['user', 'supervisor', 'dev', 'manager', 'admin'];
 
 export const ROLE_LABELS = {
   user: 'Nutzer',
   supervisor: 'Supervisor',
+  dev: 'Dev',
   manager: 'Manager',
   admin: 'Admin'
 };
@@ -22,6 +23,8 @@ export const ROLE_PERMISSIONS = {
   user: {
     captureFeedback: true,
     seeAllComments: false,
+    reviewStories: false,
+    developStories: false,
     decideStories: false,
     viewReports: false,
     manageUsers: false
@@ -29,13 +32,26 @@ export const ROLE_PERMISSIONS = {
   supervisor: {
     captureFeedback: true,
     seeAllComments: true,
-    decideStories: true,
+    reviewStories: true,
+    developStories: false,
+    decideStories: false,
+    viewReports: false,
+    manageUsers: false
+  },
+  dev: {
+    captureFeedback: true,
+    seeAllComments: true,
+    reviewStories: true,
+    developStories: true,
+    decideStories: false,
     viewReports: false,
     manageUsers: false
   },
   manager: {
     captureFeedback: true,
     seeAllComments: true,
+    reviewStories: true,
+    developStories: true,
     decideStories: true,
     viewReports: true,
     manageUsers: false
@@ -43,6 +59,8 @@ export const ROLE_PERMISSIONS = {
   admin: {
     captureFeedback: true,
     seeAllComments: true,
+    reviewStories: true,
+    developStories: true,
     decideStories: true,
     viewReports: true,
     manageUsers: true
