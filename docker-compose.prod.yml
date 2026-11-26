@@ -1,0 +1,33 @@
+# Produktions-Override für feste Custom-Domain mit automatischem HTTPS (Let's Encrypt via Caddy)
+# Start auf Server (z. B. re.onestrand.ch):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Lokaler Laptop-/ATL-Betrieb nutzt weiterhin direkt `docker compose up -d` (Cloudflare Quick Tunnel).
+
+services:
+  app:
+    ports: !override
+      - "127.0.0.1:${APP_PORT:-3001}:3000"
+
+  tunnel:
+    profiles: ["quick-tunnel"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-re.onestrand.ch}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -44,6 +44,9 @@ function createMockStore({ dbHealthy = true } = {}) {
     async findUserByUsername(username) {
       return users.find((u) => u.username.toLowerCase() === String(username).toLowerCase()) || null;
     },
+    async findUserById(id) {
+      return users.find((u) => u.id === id) || null;
+    },
     async createUser({ username, displayName, role, passwordHash }) {
       const u = {
         id: users.length + 1,
@@ -812,20 +815,21 @@ test('5-Rollen-Workflow (Dev / Supervisor / Autor-exklusive Rückfragen + Notifi
     const devCookie = regDev.headers.get('set-cookie').split(';')[0];
     const devId = (await regDev.json()).user.id;
 
-    // Admin gibt dev1 die Rolle 'dev'
+    // Admin gibt dev1 die Rolle 'dev' — greift sofort live ohne erneutes Login!
     const setDev = await fetch(`${baseUrl}/api/users/${devId}/role`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
       body: JSON.stringify({ role: 'dev' })
     });
     assert.equal(setDev.status, 200);
-    // Neu einloggen damit Session-Cookie die Rolle 'dev' trägt
-    const loginDev = await fetch(`${baseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'dev1', password: 'secret-password-2' })
-    });
-    const activeDevCookie = loginDev.headers.get('set-cookie').split(';')[0];
+    const activeDevCookie = devCookie;
+    const meDev = await (await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: activeDevCookie } })).json();
+    assert.equal(meDev.user.role, 'dev');
+
+    // robots.txt sperrt Suchmaschinen für interne Instanz (re.onestrand.ch)
+    const robots = await fetch(`${baseUrl}/robots.txt`);
+    assert.equal(robots.status, 200);
+    assert.match(await robots.text(), /Disallow: \//);
 
     const regAuthor = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',

@@ -260,6 +260,11 @@ export function createPostgresStore(pool) {
       return res.rowCount > 0 ? res.rows[0] : null;
     },
 
+    async findUserById(id) {
+      const res = await pool.query(`SELECT id, username, display_name, role, created_at FROM users WHERE id = $1`, [id]);
+      return res.rowCount > 0 ? res.rows[0] : null;
+    },
+
     async createUser({ username, displayName, role = 'user', passwordHash }) {
       const cleanUser = String(username || '').trim().toLowerCase();
       const safeRole = normalizeRole(role);

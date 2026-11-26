@@ -668,7 +668,7 @@ body {
 }
 
 .modal-wide {
-  max-width: 680px;
+  max-width: 760px;
   max-height: 86vh;
   overflow-y: auto;
 }

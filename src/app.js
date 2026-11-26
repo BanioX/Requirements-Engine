@@ -99,8 +99,33 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     return verifySessionToken(token, signingSecret);
   }
 
+  async function resolveSessionUser(req) {
+    if (req._resolvedUser !== undefined) return req._resolvedUser;
+    const cookieUser = getSessionUser(req);
+    if (!cookieUser) {
+      req._resolvedUser = null;
+      return null;
+    }
+    if (store.findUserById) {
+      const fresh = await store.findUserById(cookieUser.id);
+      if (!fresh) {
+        req._resolvedUser = null;
+        return null;
+      }
+      req._resolvedUser = {
+        id: fresh.id,
+        username: fresh.username,
+        displayName: fresh.display_name || cookieUser.displayName,
+        role: normalizeRole(fresh.role)
+      };
+      return req._resolvedUser;
+    }
+    req._resolvedUser = cookieUser;
+    return cookieUser;
+  }
+
   function getClientToken(req) {
-    const user = getSessionUser(req);
+    const user = req._resolvedUser ?? getSessionUser(req);
     if (user) return `u:${user.id}`;
     return String(req.headers['x-client-token'] || '')
       .replace(/[^a-zA-Z0-9_-]/g, '')
@@ -108,7 +133,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   }
 
   async function canSeeAllComments(req) {
-    const user = getSessionUser(req);
+    const user = await resolveSessionUser(req);
     if (user && hasPermission(user.role, 'seeAllComments')) return true;
     if (configuredManagerPin) {
       const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -123,7 +148,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
   async function requireReportAccess(req, res, next) {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       if (user && hasPermission(user.role, 'viewReports')) return next();
       if (configuredManagerPin) {
         const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -139,7 +164,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
   async function requireAdminAccess(req, res, next) {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       if (user && hasPermission(user.role, 'manageUsers')) return next();
       if (configuredManagerPin) {
         const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -155,7 +180,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
   async function requireReviewAccess(req, res, next) {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       if (user && hasPermission(user.role, 'reviewStories')) return next();
       if (configuredManagerPin) {
         const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -171,7 +196,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
   async function requireDecideAccess(req, res, next) {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       if (user && hasPermission(user.role, 'decideStories')) return next();
       if (configuredManagerPin) {
         const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -186,7 +211,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   }
 
   async function hasPermissionOrOpen(req, permission) {
-    const user = getSessionUser(req);
+    const user = await resolveSessionUser(req);
     if (user && hasPermission(user.role, permission)) return true;
     if (configuredManagerPin) {
       const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
@@ -215,7 +240,12 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     .filter(Boolean);
   const frameAncestors = allowedFrames.length > 0 ? ["'self'", ...allowedFrames] : ["'self'"];
 
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
   app.use(
     helmet({
       frameguard: allowedFrames.length > 0 ? false : { action: 'sameorigin' },
@@ -232,6 +262,10 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     })
   );
 
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain').send('User-agent: *\nDisallow: /\n');
+  });
+
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', createWriteRateLimiter());
 
@@ -244,7 +278,15 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   });
 
   const publicDir = path.resolve(import.meta.dirname, 'public');
-  app.use(express.static(publicDir));
+  app.use(
+    express.static(publicDir, {
+      setHeaders(res, filePath) {
+        if (/\.(html|js|css)$/i.test(filePath)) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    })
+  );
 
   // Muss-Punkt 3: Aktiver Healthcheck mit echter PostgreSQL-Prüfung
   app.get('/health', async (_req, res) => {
@@ -326,10 +368,16 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Authentifizierung & Rechtematrix (Nutzer, Supervisor, Manager, Admin)
+  // Authentifizierung & Rechtematrix (Nutzer, Supervisor, Dev, Manager, Admin)
   app.get('/api/auth/me', async (req, res, next) => {
     try {
-      const user = getSessionUser(req);
+      const cookieUser = getSessionUser(req);
+      const user = await resolveSessionUser(req);
+      if (user && cookieUser && user.role !== cookieUser.role) {
+        const refreshed = signSessionToken(user, signingSecret);
+        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        res.setHeader('Set-Cookie', buildSessionCookie(refreshed, { secure: isHttps }));
+      }
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
       res.json({
         user,
@@ -366,7 +414,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
       // Erster Account im System wird automatisch Admin, alle weiteren starten als Nutzer (oder frei durch Admin)
       const adminCount = store.countAdmins ? await store.countAdmins() : 0;
-      const currentUser = getSessionUser(req);
+      const currentUser = await resolveSessionUser(req);
       const requestedRole = normalizeRole(req.body?.role);
       const role = adminCount === 0 ? 'admin' : currentUser && hasPermission(currentUser.role, 'manageUsers') ? requestedRole : 'user';
 
@@ -445,7 +493,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!id) return res.status(400).json({ error: 'Ungültige Benutzer-ID.' });
       const nextRole = req.body?.role;
       if (!VALID_ROLES.includes(nextRole)) {
-        return res.status(400).json({ error: 'Ungültige Rolle (user, supervisor, manager, admin).' });
+        return res.status(400).json({ error: 'Ungültige Rolle (user, supervisor, dev, manager, admin).' });
       }
       if (!store.listUsers || !store.updateUserRole) {
         return res.status(501).json({ error: 'Benutzerverwaltung nicht verfügbar.' });
@@ -786,7 +834,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         : [];
       const safeCustomTitle = typeof customTitle === 'string' ? customTitle.trim().slice(0, 140) : '';
       const resolvedOrigin = origin || 'kunde';
-      const sessionUser = getSessionUser(req);
+      const sessionUser = await resolveSessionUser(req);
       const safeAuthor =
         (typeof submittedBy === 'string' && submittedBy.trim().slice(0, 80)) ||
         (sessionUser ? sessionUser.displayName : '');
@@ -853,7 +901,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!store.mergeStories) {
         return res.status(501).json({ error: 'Zusammenführen nicht verfügbar.' });
       }
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const merged = await store.mergeStories(sourceId, targetId, {
         actorRole: user ? user.displayName : 'Betriebsverantwortung'
       });
@@ -918,7 +966,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!store.createStoryQuestion) {
         return res.status(501).json({ error: 'Rückfragen nicht verfügbar.' });
       }
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const q = await store.createStoryQuestion(id, {
         authorName: user ? user.displayName : 'Team',
         authorRole: user ? normalizeRole(user.role) : 'supervisor',
@@ -951,7 +999,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!store.replyToStoryQuestion) {
         return res.status(501).json({ error: 'Antwortfunktion nicht verfügbar.' });
       }
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const updated = await store.replyToStoryQuestion(id, qid, {
         replyBody,
         replyAuthor: user ? user.displayName : story.submitted_by || 'Autor'
@@ -966,7 +1014,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   // In-App Benachrichtigungen & Smarte Event-Abos
   app.get('/api/notifications', async (req, res, next) => {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const token = getClientToken(req);
       const [items, subscription] = await Promise.all([
         store.listNotifications
@@ -993,7 +1041,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!store.saveNotificationSubscription) {
         return res.status(501).json({ error: 'Abo-Funktion nicht verfügbar.' });
       }
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const saved = await store.saveNotificationSubscription(token, {
         userName: user ? user.displayName : '',
         onImplemented: Boolean(req.body?.onImplemented),
@@ -1021,7 +1069,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (!store.upsertRelevanceVote) {
         return res.status(501).json({ error: 'Relevanz-Voting nicht verfügbar.' });
       }
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const voterName = user
         ? user.displayName
         : String(req.body?.voterName || '').trim().slice(0, 80) || 'Teammitglied';
@@ -1060,7 +1108,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
   app.post('/api/notifications/read', async (req, res, next) => {
     try {
-      const user = getSessionUser(req);
+      const user = await resolveSessionUser(req);
       const id = req.body?.id ? parsePositiveId(req.body.id) : null;
       if (store.markNotificationsRead) {
         await store.markNotificationsRead({
@@ -1094,7 +1142,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
 
       const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
       const safeChannel = allowedChannels.has(req.body?.channel) ? req.body.channel : '';
-      const sessionUser = getSessionUser(req);
+      const sessionUser = await resolveSessionUser(req);
       const recordedBy =
         (typeof req.body?.recordedBy === 'string' && req.body.recordedBy.trim().slice(0, 80)) ||
         (sessionUser ? sessionUser.displayName : '');
@@ -1227,7 +1275,7 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       if (customerText.length < 5 || customerText.length > 1500) {
         return res.status(400).json({ error: 'Bitte eine Begründung zwischen 5 und 1500 Zeichen angeben.' });
       }
-      const sessionUser = getSessionUser(req);
+      const sessionUser = await resolveSessionUser(req);
       const resolvedActor = sessionUser
         ? `${sessionUser.displayName} (${ROLE_LABELS[sessionUser.role] || sessionUser.role})`
         : actorRole

@@ -1114,6 +1114,7 @@ async function openRolesModal(tab = state.rolesTab || 'matrix') {
         </div>
       </div>
       <div class="drawer-label">${esc(t('matrixTitle'))}</div>
+      <div style="overflow-x:auto;">
       <table class="matrix-table">
         <thead>
           <tr>
@@ -1129,6 +1130,7 @@ async function openRolesModal(tab = state.rolesTab || 'matrix') {
         </thead>
         <tbody>${matrixRows}</tbody>
       </table>
+      </div>
       <div class="drawer-label">${esc(t('registeredUsers'))} (${data.users.length})</div>
       <div class="user-role-list">${userRows || `<div style="font-size:0.8rem; color:var(--silver-3);">${esc(t('noAccounts'))}</div>`}</div>
     `;
@@ -2370,6 +2372,7 @@ function init() {
       localStorage.setItem('re_lang', state.lang);
       applyLanguageToStaticUi();
       renderAuthState();
+      renderNotifications();
       loadIdeas();
       if (state.view === 'report') loadReport();
     });
