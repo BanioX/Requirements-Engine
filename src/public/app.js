@@ -1892,7 +1892,6 @@ async function loadReport() {
       <div>
         <div class="rep-brand-row">
           <img src="/assets/mark.svg" alt="ONESTRAND" />
-          <img src="/assets/re-mark.svg" alt="RE" style="height:20px; width:20px; border-radius:5px;" />
           <span class="rep-brand-label">ONESTRAND · REQUIREMENTS ENGINE</span>
         </div>
         <h1>${esc(t('repTitle'))}</h1>
