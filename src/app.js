@@ -152,6 +152,22 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   }
 
+  async function requireDecideAccess(req, res, next) {
+    try {
+      const user = getSessionUser(req);
+      if (user && hasPermission(user.role, 'decideStories')) return next();
+      if (configuredManagerPin) {
+        const provided = String(req.headers['x-manager-pin'] || req.query.pin || '').trim();
+        if (provided === configuredManagerPin) return next();
+      }
+      const adminCount = store.countAdmins ? await store.countAdmins() : 0;
+      if (adminCount === 0 && !configuredManagerPin) return next();
+      return res.status(403).json({ error: 'Diese Aktion ist nur für Supervisor, Manager oder Admin freigegeben.' });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
   async function getCommentsVisibility() {
     if (!store.getSetting) return 'all';
     const val = await store.getSetting('comments_visibility', 'all');
@@ -705,7 +721,9 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
   app.post('/api/stories', async (req, res, next) => {
     try {
       const {
+        title: customTitle,
         rawFeedback,
+        businessValues,
         sourceRole,
         origin,
         channel,
@@ -725,6 +743,17 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
       }
       const allowedChannels = new Set(['', 'Persönlich', 'Telefon', 'Chat', 'E-Mail']);
       const safeChannel = allowedChannels.has(channel) ? channel : '';
+      const allowedValues = new Set([
+        'zeitersparnis',
+        'kundenaufwand',
+        'erklaerung',
+        'fehler',
+        'umsatz'
+      ]);
+      const safeBusinessValues = Array.isArray(businessValues)
+        ? [...new Set(businessValues.map((v) => String(v || '').trim()).filter((v) => allowedValues.has(v)))]
+        : [];
+      const safeCustomTitle = typeof customTitle === 'string' ? customTitle.trim().slice(0, 140) : '';
       const resolvedOrigin = origin || 'kunde';
       const sessionUser = getSessionUser(req);
       const safeAuthor =
@@ -749,13 +778,15 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
         processId: processId ? parsePositiveId(processId) : null,
         channel: safeChannel,
         submittedBy: safeAuthor,
+        businessValues: safeBusinessValues,
         durationSeconds: parsedDuration,
         interactionRef: safeRef,
         customerRef: safeCustomer,
         clientToken: getClientToken(req),
         rawFeedback: rawFeedback.trim(),
         dueDate: dueDate || null,
-        ...analyzed
+        ...analyzed,
+        title: safeCustomTitle || analyzed.title
       });
 
       res.status(201).json({ story: created, duplicates: analyzed.duplicates });
@@ -767,14 +798,36 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Eintrag entfernen (für den Betrieb)
-  app.delete('/api/stories/:id', async (req, res, next) => {
+  // Eintrag entfernen (Supervisor / Manager / Admin)
+  app.delete('/api/stories/:id', requireDecideAccess, async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
       const ok = await store.deleteStory(id);
       if (!ok) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
       res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Duplikate verlustfrei zusammenführen (alle Fälle, Zeiten & Ref-IDs wandern ins Zielthema)
+  app.post('/api/stories/:id/merge', requireDecideAccess, async (req, res, next) => {
+    try {
+      const sourceId = parsePositiveId(req.params.id);
+      const targetId = parsePositiveId(req.body?.targetId);
+      if (!sourceId || !targetId || sourceId === targetId) {
+        return res.status(400).json({ error: 'Bitte ein gültiges Zielthema wählen.' });
+      }
+      if (!store.mergeStories) {
+        return res.status(501).json({ error: 'Zusammenführen nicht verfügbar.' });
+      }
+      const user = getSessionUser(req);
+      const merged = await store.mergeStories(sourceId, targetId, {
+        actorRole: user ? user.displayName : 'Betriebsverantwortung'
+      });
+      if (!merged) return res.status(404).json({ error: 'Quell- oder Zielthema nicht gefunden.' });
+      res.json(merged);
     } catch (err) {
       next(err);
     }
@@ -875,8 +928,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Machbarkeit bewerten (einfach / mittel / aufwaendig -> Quick-Win-Score aktualisiert sich live!)
-  app.patch('/api/stories/:id/feasibility', async (req, res, next) => {
+  // Machbarkeit bewerten (Supervisor / Manager / Admin)
+  app.patch('/api/stories/:id/feasibility', requireDecideAccess, async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
@@ -916,8 +969,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Entscheid fällen: getrenntes Kunden-Wording (öffentlich) & interne Begründung (vertraulich)
-  app.post('/api/stories/:id/decision', async (req, res, next) => {
+  // Entscheid fällen (Supervisor / Manager / Admin)
+  app.post('/api/stories/:id/decision', requireDecideAccess, async (req, res, next) => {
     try {
       const id = parsePositiveId(req.params.id);
       if (!id) return res.status(400).json({ error: 'Ungültige ID.' });
@@ -1118,8 +1171,8 @@ export function createApp({ store, buildInfo = {}, embedAllowedOrigins, managerP
     }
   });
 
-  // Entscheid-Log abrufen
-  app.get('/api/decisions', async (_req, res, next) => {
+  // Entscheid- & Audit-Log abrufen (Supervisor / Manager / Admin)
+  app.get('/api/decisions', requireDecideAccess, async (_req, res, next) => {
     try {
       const entries = await store.listDecisionLog(80);
       res.json(entries);

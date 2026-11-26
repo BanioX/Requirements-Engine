@@ -128,6 +128,7 @@ function createMockStore({ dbHealthy = true } = {}) {
         total_duration_seconds: dur,
         timed_mentions: dur > 0 ? 1 : 0,
         interaction_refs_json: payload.interactionRef ? [{ ref: payload.interactionRef, createdAt: new Date().toISOString() }] : [],
+        business_values_json: Array.isArray(payload.businessValues) ? payload.businessValues : [],
         tasks_json: payload.tasks,
         acceptance_criteria_json: payload.acceptanceCriteria,
         status: 'Eingang',
@@ -209,6 +210,20 @@ function createMockStore({ dbHealthy = true } = {}) {
       if (idx === -1) return false;
       stories.splice(idx, 1);
       return true;
+    },
+    async mergeStories(sourceId, targetId) {
+      const srcIdx = stories.findIndex((x) => x.id === sourceId);
+      const tgt = stories.find((x) => x.id === targetId);
+      if (srcIdx === -1 || !tgt) return null;
+      const src = stories[srcIdx];
+      tgt.votes += src.votes;
+      tgt.total_duration_seconds += src.total_duration_seconds || 0;
+      tgt.timed_mentions += src.timed_mentions || 0;
+      mentions.forEach((m) => {
+        if (m.story_id === sourceId) m.story_id = targetId;
+      });
+      stories.splice(srcIdx, 1);
+      return tgt;
     },
     async decideStory(id, { status, reason, publicResponse, internalNote }) {
       const s = stories.find((x) => x.id === id);
@@ -458,11 +473,36 @@ test('Auth & Rollen: Erster Account wird Admin (Chef), zweiter Nutzer hat keinen
     const userData = await regUser.json();
     assert.equal(userData.user.role, 'user');
 
-    // 3. Normaler Nutzer darf Report & CSV NICHT abrufen (HTTP 403)
+    // 3. Normaler Nutzer darf Report, CSV und Löschen NICHT ausführen (HTTP 403)
     const deniedRep = await fetch(`${baseUrl}/api/report`, { headers: { cookie: userCookie } });
     assert.equal(deniedRep.status, 403);
     const deniedCsv = await fetch(`${baseUrl}/api/stories/export/csv`, { headers: { cookie: userCookie } });
     assert.equal(deniedCsv.status, 403);
+
+    await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ rawFeedback: 'Erstes Thema für Merge-Test mit Zeit.', durationText: '02:00' })
+    });
+    await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: userCookie },
+      body: JSON.stringify({ rawFeedback: 'Zweites doppeltes Thema für Merge-Test.', durationText: '03:00' })
+    });
+
+    const deniedDel = await fetch(`${baseUrl}/api/stories/1`, { method: 'DELETE', headers: { cookie: userCookie } });
+    assert.equal(deniedDel.status, 403);
+
+    // Admin führt Duplikat #2 verlustfrei in #1 zusammen -> 2x & 300s
+    const mergeRes = await fetch(`${baseUrl}/api/stories/2/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ targetId: 1 })
+    });
+    assert.equal(mergeRes.status, 200);
+    const merged = await mergeRes.json();
+    assert.equal(merged.votes, 2);
+    assert.equal(merged.total_duration_seconds, 300);
 
     // 4. Admin (Chef) hat vollen Zugriff (HTTP 200) und kann mehrere Manager/Supervisoren ernennen
     const okRep = await fetch(`${baseUrl}/api/report`, { headers: { cookie: adminCookie } });
@@ -589,5 +629,28 @@ test('GET /api/report nutzt echte M:S-Zeiten statt Pauschalen und quantifizierba
     const jiraBody = await jiraRes.json();
     assert.equal(jiraBody.mode, 'clipboard');
     assert.match(jiraBody.markup, /h2\. Feature:/);
+  });
+});
+
+test('POST /api/stories übernimmt benutzerdefinierten Titel und Mehrwert-Badges', async () => {
+  const app = createApp({ store: createMockStore({ dbHealthy: true }) });
+
+  await withServer(app, async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Spracheinstellung dauerhaft speichern',
+        rawFeedback: 'Die Spracheinstellung geht nach jedem Neustart verloren und sorgt für Rückfragen.',
+        businessValues: ['zeitersparnis', 'kundenaufwand', 'ungueltig'],
+        submittedBy: 'Alban Hyseni',
+        channel: 'Telefon',
+        durationText: '02:30'
+      })
+    });
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.equal(body.story.title, 'Spracheinstellung dauerhaft speichern');
+    assert.deepEqual(body.story.business_values_json, ['zeitersparnis', 'kundenaufwand']);
   });
 });

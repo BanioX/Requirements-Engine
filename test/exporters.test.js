@@ -49,6 +49,7 @@ test('Markdown- und CSV-Export enthalten zentrale Story-Felder', () => {
     total_duration_seconds: 540,
     timed_mentions: 3,
     status: 'Angenommen',
+    business_values_json: ['zeitersparnis', 'kundenaufwand'],
     due_date: '2026-12-30',
     user_story: 'Als eBanking-Support möchte ich TWINT-Limiten schneller anpassen, damit Wartezeiten sinken.',
     raw_feedback: 'Zu viele Klicks bei TWINT-Limiten.',
@@ -62,6 +63,12 @@ test('Markdown- und CSV-Export enthalten zentrale Story-Felder', () => {
   assert.match(md, /REQ-5/);
 
   const csv = storiesToCsv([story]);
-  assert.match(csv, /^ID;Datum;Idee von;Meldungen;Erfasste Zeit \(MM:SS\);Ø Dauer \(MM:SS\);Machbarkeit;Kanal;CRM \/ Ref-IDs;Titel;/);
-  assert.match(csv, /REQ-5;;;3;09:00;03:00;unbewertet;;;TWINT-Limit vereinfachen;/);
+  assert.match(
+    csv,
+    /^ID;Datum;Erfasst von;Menge;Dauer \(Min\);Erfasste Zeit \(MM:SS\);Ø Dauer \(MM:SS\);Aufwand;Kanal;CRM \/ Ref-IDs;Titel;Mehrwert;/
+  );
+  assert.match(
+    csv,
+    /REQ-5;;;3;9;09:00;03:00;unbewertet;;;TWINT-Limit vereinfachen;Zeitersparnis, Weniger Kundenaufwand;/
+  );
 });

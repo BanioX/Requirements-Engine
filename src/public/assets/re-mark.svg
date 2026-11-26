@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" role="img" aria-label="RE · Requirements Engine">
+  <defs>
+    <linearGradient id="reBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d121d"/>
+      <stop offset="55%" stop-color="#04060b"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="reRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.24"/>
+      <stop offset="55%" stop-color="#c5cad2" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#5aa2ff" stop-opacity="0.24"/>
+    </linearGradient>
+    <radialGradient id="reGlow" cx="0.62" cy="0.64" r="0.46">
+      <stop offset="0%" stop-color="#2f84ff" stop-opacity="0.34"/>
+      <stop offset="100%" stop-color="#0a6cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="reSilver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="42%" stop-color="#e6e9ee"/>
+      <stop offset="100%" stop-color="#9ca3af"/>
+    </linearGradient>
+    <linearGradient id="reFusion" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e6e9ee"/>
+      <stop offset="48%" stop-color="#76b4ff"/>
+      <stop offset="100%" stop-color="#0a6cff"/>
+    </linearGradient>
+    <linearGradient id="reBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8dbdff"/>
+      <stop offset="48%" stop-color="#2f84ff"/>
+      <stop offset="100%" stop-color="#0a5bea"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Obsidian Canvas (ONESTRAND House Style: Black, Silver, Blue) -->
+  <rect x="1" y="1" width="42" height="42" rx="11" fill="url(#reBg)" stroke="url(#reRim)" stroke-width="1"/>
+  <rect x="1.5" y="1.5" width="41" height="41" rx="10.5" fill="url(#reGlow)"/>
+
+  <!-- Upper-left R (Silver · Human Input) -->
+  <path
+    d="M10.5 26.8V10.6H17.8C21.5 10.6 23.3 12.4 23.3 15.1C23.3 17.8 21.5 19.6 17.8 19.6H10.5"
+    fill="none"
+    stroke="url(#reSilver)"
+    stroke-width="3.1"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Fork / Merge Strand (Silver → Machine Blue Seam) -->
+  <path
+    d="M17.0 19.6C20.5 19.6 20.6 26.8 23.4 26.8"
+    fill="none"
+    stroke="url(#reFusion)"
+    stroke-width="3.0"
+    stroke-linecap="round"
+  />
+
+  <!-- Lower-right E (Machine Blue · Engine Output, stepped below R) -->
+  <path
+    d="M33.6 20.4H25.2C24.1 20.4 23.4 21.1 23.4 22.2V31.8C23.4 32.9 24.1 33.6 25.2 33.6H33.6"
+    fill="none"
+    stroke="url(#reBlue)"
+    stroke-width="3.1"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M23.4 26.8H31.8"
+    fill="none"
+    stroke="url(#reBlue)"
+    stroke-width="3.1"
+    stroke-linecap="round"
+  />
+
+  <!-- Architectural Fork / Merge Nodes -->
+  <circle cx="10.5" cy="26.8" r="2.1" fill="#05070b" stroke="#e6e9ee" stroke-width="1.5"/>
+  <circle cx="23.4" cy="26.8" r="2.2" fill="#ffffff" stroke="#5aa2ff" stroke-width="1.4"/>
+  <circle cx="33.6" cy="20.4" r="1.5" fill="#8dbdff"/>
+</svg>

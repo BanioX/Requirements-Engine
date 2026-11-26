@@ -38,4 +38,5 @@ test('Minimalistisches UI (Jakob Nielsen & RE-Lehrbuch): keine Dropdowns, keine 
   assert.doesNotMatch(html, /type="checkbox"/i);
   assert.doesNotMatch(js, /type="checkbox"/i);
   assert.doesNotMatch(html, /class="ch-btn active"/);
+  assert.doesNotMatch(js, /js-jira/);
 });

@@ -125,45 +125,61 @@ function formatSecondsMMSS(totalSec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+const VALUE_LABELS_DE = {
+  zeitersparnis: 'Zeitersparnis',
+  kundenaufwand: 'Weniger Kundenaufwand',
+  erklaerung: 'Weniger Erklärungen',
+  fehler: 'Weniger Fehler',
+  umsatz: 'Umsatz / Bindung'
+};
+
 export function storiesToCsv(stories = []) {
   const header = [
     'ID',
     'Datum',
-    'Idee von',
-    'Meldungen',
+    'Erfasst von',
+    'Menge',
+    'Dauer (Min)',
     'Erfasste Zeit (MM:SS)',
     'Ø Dauer (MM:SS)',
-    'Machbarkeit',
+    'Aufwand',
     'Kanal',
     'CRM / Ref-IDs',
     'Titel',
+    'Mehrwert',
     'Status',
     'Score',
-    'User Story',
+    'Beschrieb',
     'Rückmeldung / Entscheid',
     'Systemlogik / Fachnotiz'
   ];
   const rows = stories.map((s) => {
     const totalSec = Number(s.period_duration_seconds ?? s.total_duration_seconds ?? 0);
+    const totalMin = totalSec > 0 ? Math.round((totalSec / 60) * 10) / 10 : 0;
     const timed = Number(s.period_timed_mentions ?? s.timed_mentions ?? 0);
     const avgSec = timed > 0 ? Math.round(totalSec / timed) : 0;
     const refs = Array.isArray(s.interaction_refs_json)
       ? [...new Set(s.interaction_refs_json.map((r) => r.ref).filter(Boolean))].join(', ')
+      : '';
+    const values = Array.isArray(s.business_values_json)
+      ? s.business_values_json.map((v) => VALUE_LABELS_DE[v] || v).join(', ')
       : '';
     return [
       `REQ-${s.id}`,
       s.created_at ? String(s.created_at).slice(0, 10) : '',
       s.submitted_by || '',
       s.period_mentions ?? s.votes ?? 1,
+      totalMin,
       formatSecondsMMSS(totalSec),
       formatSecondsMMSS(avgSec),
       s.feasibility || 'unbewertet',
       s.channel || '',
       refs,
       s.title,
+      values,
       s.status,
       s.priority_score,
-      s.user_story,
+      s.raw_feedback || s.user_story || '',
       s.public_response || s.decision_reason || '',
       s.internal_note || ''
     ];

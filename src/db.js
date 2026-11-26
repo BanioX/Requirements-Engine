@@ -117,6 +117,7 @@ export async function initDatabase(pool) {
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS total_duration_seconds INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS timed_mentions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS interaction_refs_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE feedback_stories ADD COLUMN IF NOT EXISTS business_values_json JSONB NOT NULL DEFAULT '[]'::jsonb;
 
     UPDATE feedback_stories
     SET decided_at = updated_at
@@ -444,10 +445,13 @@ export function createPostgresStore(pool) {
       const initialRefs = safeRef
         ? [{ ref: safeRef, channel: payload.channel || '', createdAt: new Date().toISOString() }]
         : [];
+      const safeValues = Array.isArray(payload.businessValues)
+        ? [...new Set(payload.businessValues.map((v) => String(v || '').trim().slice(0, 40)).filter(Boolean))].slice(0, 8)
+        : [];
       const res = await pool.query(
         `INSERT INTO feedback_stories
-         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, interaction_refs_json, tasks_json, acceptance_criteria_json, status, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,'Eingang',$21)
+         (process_id, origin, channel, submitted_by, feasibility, source_role, feedback_type, urgency, raw_feedback, title, user_story, req_type, moscow, size_estimate, priority_score, votes, total_duration_seconds, timed_mentions, interaction_refs_json, business_values_json, tasks_json, acceptance_criteria_json, status, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,'Eingang',$22)
          RETURNING *`,
         [
           payload.processId || null,
@@ -468,6 +472,7 @@ export function createPostgresStore(pool) {
           safeDur,
           timed,
           JSON.stringify(initialRefs),
+          JSON.stringify(safeValues),
           JSON.stringify(payload.tasks),
           JSON.stringify(payload.acceptanceCriteria),
           payload.dueDate || null
@@ -511,6 +516,80 @@ export function createPostgresStore(pool) {
       if (del.rowCount === 0) return false;
       await pool.query(`DELETE FROM decision_log WHERE entity_type = 'story' AND entity_id = $1`, [id]);
       return true;
+    },
+
+    async mergeStories(sourceId, targetId, { actorRole = 'Supervisor' } = {}) {
+      if (sourceId === targetId) return null;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const srcRes = await client.query(`SELECT * FROM feedback_stories WHERE id = $1 FOR UPDATE`, [sourceId]);
+        const tgtRes = await client.query(`SELECT * FROM feedback_stories WHERE id = $1 FOR UPDATE`, [targetId]);
+        if (srcRes.rowCount === 0 || tgtRes.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return null;
+        }
+        const src = srcRes.rows[0];
+        const tgt = tgtRes.rows[0];
+
+        // Alle Einzelfälle & Zeitstempel verlustfrei ins Zielthema verschieben
+        await client.query(`UPDATE story_mentions SET story_id = $1 WHERE story_id = $2`, [targetId, sourceId]);
+
+        const mergedRefs = [
+          ...(Array.isArray(tgt.interaction_refs_json) ? tgt.interaction_refs_json : []),
+          ...(Array.isArray(src.interaction_refs_json) ? src.interaction_refs_json : [])
+        ].slice(-50);
+
+        const mergedValues = [
+          ...new Set([
+            ...(Array.isArray(tgt.business_values_json) ? tgt.business_values_json : []),
+            ...(Array.isArray(src.business_values_json) ? src.business_values_json : [])
+          ])
+        ].slice(0, 8);
+
+        const nextVotes = Number(tgt.votes || 1) + Number(src.votes || 1);
+        const nextDur = Number(tgt.total_duration_seconds || 0) + Number(src.total_duration_seconds || 0);
+        const nextTimed = Number(tgt.timed_mentions || 0) + Number(src.timed_mentions || 0);
+        const nextPost =
+          tgt.status === 'Abgelehnt'
+            ? Number(tgt.post_decision_mentions || 0) + Number(src.votes || 1)
+            : Number(tgt.post_decision_mentions || 0);
+
+        const updatedRes = await client.query(
+          `UPDATE feedback_stories
+           SET votes = $1,
+               total_duration_seconds = $2,
+               timed_mentions = $3,
+               post_decision_mentions = $4,
+               interaction_refs_json = $5::jsonb,
+               business_values_json = $6::jsonb,
+               updated_at = NOW()
+           WHERE id = $7 RETURNING *`,
+          [nextVotes, nextDur, nextTimed, nextPost, JSON.stringify(mergedRefs), JSON.stringify(mergedValues), targetId]
+        );
+
+        await client.query(`DELETE FROM feedback_stories WHERE id = $1`, [sourceId]);
+        await client.query(
+          `INSERT INTO decision_log (entity_type, entity_id, entity_title, action, reason, actor_role)
+           VALUES ('story', $1, $2, 'Zusammengeführt', $3, $4)`,
+          [
+            targetId,
+            tgt.title,
+            `Duplikat «${src.title}» (${src.votes}×) verlustfrei in dieses Thema zusammengeführt.`,
+            actorRole
+          ]
+        );
+        await client.query('COMMIT');
+        return {
+          ...updatedRes.rows[0],
+          trafficLight: calculateTrafficLight(updatedRes.rows[0].due_date)
+        };
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     },
 
     async listStoryMentions(storyId, limit = 150) {

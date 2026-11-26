@@ -20,27 +20,441 @@ const LUCIDE = {
   shieldCheck: '<svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>',
   logOut: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>',
   barChart: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
-  arrowUpRight: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>',
   trash: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
   copy: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
   users: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  gitMerge: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
   check: '<svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
   minus: '<svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>'
 };
 
-const ROLE_NAMES = {
-  user: 'Nutzer',
-  supervisor: 'Supervisor',
-  manager: 'Manager',
-  admin: 'Admin'
+const I18N = {
+  de: {
+    search: 'Suchen',
+    install: 'Installieren',
+    report: 'Report',
+    board: 'Board',
+    titlePlaceholder: 'Titel der Idee',
+    capturePlaceholder: 'Beschrieb der Idee oder des Problems…',
+    valueLabel: 'Mehrwert',
+    valZeitersparnis: 'Zeitersparnis',
+    valKundenaufwand: 'Weniger Kundenaufwand',
+    valErklaerung: 'Weniger Erklärungen',
+    valFehler: 'Weniger Fehler',
+    valUmsatz: 'Umsatz / Bindung',
+    authorPlaceholder: 'Erfasst von',
+    refPlaceholder: 'CRM / Ref-ID',
+    timePlaceholder: 'Zeit',
+    secShort: 'Sek',
+    clear: 'Leeren',
+    submit: 'Erfassen',
+    chPersonal: 'Persönlich',
+    chPhone: 'Telefon',
+    chChat: 'Chat',
+    chEmail: 'E-Mail',
+    all: 'Alle',
+    easy: 'Einfach',
+    medium: 'Mittel',
+    complex: 'Aufwändig',
+    unrated: 'Unbewertet',
+    inProgress: 'In Arbeit',
+    done: 'Erledigt',
+    implemented: 'Umgesetzt',
+    reviewed: 'Geprüft',
+    rejected: 'Abgelehnt',
+    newBadge: 'Neu',
+    open: 'Offen',
+    empty: 'Noch keine Einträge.',
+    today: 'Heute',
+    d7: '7 T.',
+    d30: '30 T.',
+    year: 'Jahr',
+    prevYear: 'Vorjahr',
+    perDay: 'Pro Tag',
+    perWeek: 'Pro Woche',
+    perMonth: 'Pro Monat',
+    perYear: 'Pro Jahr',
+    exportPdf: 'PDF exportieren',
+    timeBasis: 'Zeitbasis:',
+    fallbackEmpty: 'Fallback falls leer:',
+    measured: 'Echt erfasst',
+    projected: 'Hochrechnung (~)',
+    commentsLbl: 'Kommentare:',
+    visAll: 'Alle sehen alle',
+    visOwn: 'Nur eigene (Chef alle)',
+    signIn: 'Anmelden',
+    signInProfile: 'Anmelden / Profil',
+    register: 'Konto erstellen',
+    signOut: 'Abmelden',
+    rolesAndUsers: 'Rechte & Benutzer',
+    rolesModalTitle: 'Rechtematrix & Benutzer',
+    rolesModalHint: 'Rollen pro Person per Klick zuweisen (mehrere Admins, Manager & Supervisoren möglich).',
+    auditLog: 'Audit-Protokoll',
+    auditEmpty: 'Noch keine Einträge im Protokoll.',
+    matrixTitle: 'Rechtematrix',
+    colRole: 'Rolle',
+    colCapture: 'Erfassen',
+    colAllComm: 'Alle Komm.',
+    colDecide: 'Entscheide',
+    colReport: 'Report / Excel',
+    colRights: 'Rechte',
+    registeredUsers: 'Registrierte Benutzer',
+    noAccounts: 'Keine Konten vorhanden.',
+    loading: 'Lade…',
+    hintFirstAdmin: 'Erstes Konto erhält automatisch Admin-Rechte (Chef).',
+    hintNewUser: 'Neues Nutzer-Konto für dein Team.',
+    hintLogin: 'Mit Benutzername und Passwort anmelden.',
+    username: 'Benutzername',
+    password: 'Passwort',
+    customerOpt: 'Kunde (optional)',
+    loggedBy: 'Erfasst von',
+    caseFeedback: 'Kundenfeedback zu diesem Fall (optional)…',
+    addVote: '+1 Erfassen',
+    voteTitle: 'Upvote mit Zeitaufwand erfassen (min. 1 Min.)',
+    casesTitle: 'Feedbacks & Logs',
+    ownCasesTitle: 'Eigene Feedbacks',
+    showLess: 'Weniger',
+    showAllPrefix: 'Alle',
+    showAllSuffix: 'anzeigen',
+    noCases: 'Noch keine Einzelfälle erfasst.',
+    noNote: 'Ohne Zusatztext erfasst',
+    customer: 'Kunde',
+    merge: 'Zusammenführen',
+    mergePrompt: 'In welches Zielthema zusammenführen?',
+    cancel: 'Abbrechen',
+    noMergeTarget: 'Kein weiteres Thema vorhanden.',
+    delete: 'Löschen',
+    saveNote: 'Notiz sichern',
+    notePlaceholder: 'Systemlogik / Fachnotiz (intern)…',
+    statusAndReason: 'Status & Begründung',
+    rejectBtn: 'Ablehnen',
+    reasonPlaceholder: 'Begründung / Rückmeldung zum Entscheid…',
+    internalOpt: 'Interne Fachnotiz (optional)',
+    save: 'Speichern',
+    send: 'Senden',
+    decisionLbl: 'Entscheid:',
+    decFeedbackPlaceholder: 'Kurze Rückmeldung zum Entscheid…',
+    feedbackDecisionKey: 'Rückmeldung / Entscheid',
+    internalNoteKey: 'Systemlogik / Dev',
+    copy: 'Kopieren',
+    reReview: 'Neu prüfen',
+    afterReject: 'nach Ablehnung',
+    followupUseful: 'Rückmeldung sinnvoll',
+    refShort: 'Ref.',
+    moreSuffix: 'weitere',
+    repTitle: 'Management-Report',
+    repPeriod: 'Zeitraum',
+    repFeasLbl: 'Aufwand',
+    repBasis: 'Basis',
+    repGenerated: 'Erstellt am',
+    repTopics: 'Themen',
+    repTotalInq: 'Anfragen Total',
+    repWithTime: 'mit Zeitaufwand',
+    repEffort: 'Ressourcen-Aufwand',
+    repNoTimes: 'Noch keine Zeiten erfasst',
+    repWorkdays: 'Arbeitstage',
+    repOf: 'von',
+    repRate: 'Umsetzungsquote',
+    repQuickWins: 'Quick Wins (Einfach)',
+    repAmpel: 'Umsetzungsaufwand',
+    repDrivers: 'Top Ressourcen-Treiber (Meldungen & Dauer)',
+    repNoFilterMatch: 'Keine Einträge im gewählten Filter.',
+    repNoTimeline: 'Keine Verlaufdaten im gewählten Zeitraum.',
+    repNoTime: 'keine Zeit',
+    repTrendPer: 'Verlauf pro',
+    repAllTopics: '(alle Themen)',
+    repPeak: 'Spitze',
+    repShowAllTopics: 'Alle Themen',
+    repOverview: 'Einzelübersicht',
+    repEmptyTable: 'Keine Einträge für diesen Zeitraum / Filter.',
+    repSavings: 'Wirkung & Einsparung',
+    repImplTopics: 'umgesetzte Themen',
+    repSolvedInq: 'gelöste Anfragen',
+    repPressure: 'Wiedervorlage & Handlungsdruck (trotz Ablehnung weiter gefragt / unzufrieden)',
+    repAfterwards: 'danach',
+    repCredits: 'Ideengeber & Credits',
+    repIdeaOne: 'Idee',
+    repIdeas: 'Ideen',
+    repMentions: 'Meldungen',
+    thDate: 'Datum',
+    thTopic: 'Thema',
+    thAuthor: 'Erfasst von',
+    thChannel: 'Kanal',
+    thAmpel: 'Aufwand',
+    thStatus: 'Status',
+    thVolume: 'Menge',
+    thDuration: 'Dauer',
+    granDay: 'Tag',
+    granWeek: 'Woche',
+    granMonth: 'Monat',
+    granYear: 'Jahr',
+    mgrAccess: 'Manager-Freigabe',
+    unlock: 'Freischalten',
+    roleUser: 'Nutzer',
+    roleSupervisor: 'Supervisor',
+    roleManager: 'Manager',
+    roleAdmin: 'Admin',
+    entries: 'Einträge',
+    dbDisconnected: 'DB getrennt',
+    toastSaved: 'Gespeichert.',
+    toastCaptured: 'Erfasst.',
+    toastCopied: 'Kopiert.',
+    toastCopyFail: 'Kopieren fehlgeschlagen.',
+    toastDeleted: 'Gelöscht.',
+    toastMerged: 'Themen verlustfrei zusammengeführt.',
+    toastSignedOut: 'Abgemeldet.',
+    toastNoteSaved: 'Notiz gespeichert.',
+    toastDecFbSaved: 'Rückmeldung zum Entscheid gespeichert.',
+    toastVoteDown: 'Unzufriedenheit gezählt.',
+    toastVoteUp: 'Zustimmung gezählt.',
+    toastMinTime: 'Mindestens 1 Minute Zeitaufwand (z. B. 01:00) erfassen.',
+    toastVisOwn: 'Aktiv: User sehen nur eigene Kommentare (Chef sieht alle).',
+    toastVisAll: 'Aktiv: Alle sehen alle Kommentare.',
+    toastSimilarTo: 'Ähnlich zu'
+  },
+  en: {
+    search: 'Search',
+    install: 'Install',
+    report: 'Report',
+    board: 'Board',
+    titlePlaceholder: 'Idea title',
+    capturePlaceholder: 'Description of the idea or problem…',
+    valueLabel: 'Value',
+    valZeitersparnis: 'Time savings',
+    valKundenaufwand: 'Less customer effort',
+    valErklaerung: 'Less explanation',
+    valFehler: 'Fewer errors',
+    valUmsatz: 'Revenue / retention',
+    authorPlaceholder: 'Logged by',
+    refPlaceholder: 'CRM / Ref ID',
+    timePlaceholder: 'Time',
+    secShort: 'Sec',
+    clear: 'Clear',
+    submit: 'Submit',
+    chPersonal: 'In-person',
+    chPhone: 'Phone',
+    chChat: 'Chat',
+    chEmail: 'E-mail',
+    all: 'All',
+    easy: 'Easy',
+    medium: 'Medium',
+    complex: 'Complex',
+    unrated: 'Unrated',
+    inProgress: 'In progress',
+    done: 'Done',
+    implemented: 'Implemented',
+    reviewed: 'Reviewed',
+    rejected: 'Rejected',
+    newBadge: 'New',
+    open: 'Open',
+    empty: 'No entries yet.',
+    today: 'Today',
+    d7: '7d',
+    d30: '30d',
+    year: 'Year',
+    prevYear: 'Prev year',
+    perDay: 'Daily',
+    perWeek: 'Weekly',
+    perMonth: 'Monthly',
+    perYear: 'Yearly',
+    exportPdf: 'Export PDF',
+    timeBasis: 'Time basis:',
+    fallbackEmpty: 'Fallback if empty:',
+    measured: 'Recorded',
+    projected: 'Projected (~)',
+    commentsLbl: 'Comments:',
+    visAll: 'All visible',
+    visOwn: 'Own only (Admin all)',
+    signIn: 'Sign in',
+    signInProfile: 'Sign in / Profile',
+    register: 'Create account',
+    signOut: 'Sign out',
+    rolesAndUsers: 'Roles & Users',
+    rolesModalTitle: 'Roles & Permissions',
+    rolesModalHint: 'Assign roles per person with one click (multiple admins, managers & supervisors supported).',
+    auditLog: 'Audit Log',
+    auditEmpty: 'No audit log entries yet.',
+    matrixTitle: 'Permission Matrix',
+    colRole: 'Role',
+    colCapture: 'Capture',
+    colAllComm: 'All Comm.',
+    colDecide: 'Decisions',
+    colReport: 'Report / Excel',
+    colRights: 'Rights',
+    registeredUsers: 'Registered Users',
+    noAccounts: 'No accounts yet.',
+    loading: 'Loading…',
+    hintFirstAdmin: 'The first account automatically gets Admin rights.',
+    hintNewUser: 'Create a new user account for your team.',
+    hintLogin: 'Sign in with username and password.',
+    username: 'Username',
+    password: 'Password',
+    customerOpt: 'Customer (optional)',
+    loggedBy: 'Logged by',
+    caseFeedback: 'Customer feedback for this case (optional)…',
+    addVote: '+1 Submit',
+    voteTitle: 'Log +1 case with time spent (min. 1 min)',
+    casesTitle: 'Feedback & Logs',
+    ownCasesTitle: 'My Feedback',
+    showLess: 'Show less',
+    showAllPrefix: 'Show all',
+    showAllSuffix: '',
+    noCases: 'No individual cases logged yet.',
+    noNote: 'Logged without note',
+    customer: 'Customer',
+    merge: 'Merge',
+    mergePrompt: 'Merge into which target topic?',
+    cancel: 'Cancel',
+    noMergeTarget: 'No other topic available.',
+    delete: 'Delete',
+    saveNote: 'Save note',
+    notePlaceholder: 'System logic / internal note…',
+    statusAndReason: 'Status & Decision',
+    rejectBtn: 'Reject',
+    reasonPlaceholder: 'Decision reason / feedback…',
+    internalOpt: 'Internal note (optional)',
+    save: 'Save',
+    send: 'Send',
+    decisionLbl: 'Decision:',
+    decFeedbackPlaceholder: 'Brief feedback on this decision…',
+    feedbackDecisionKey: 'Feedback / Decision',
+    internalNoteKey: 'System logic / Dev',
+    copy: 'Copy',
+    reReview: 'Re-review',
+    afterReject: 'after rejection',
+    followupUseful: 'Follow-up useful',
+    refShort: 'ref.',
+    moreSuffix: 'more',
+    repTitle: 'Management Report',
+    repPeriod: 'Period',
+    repFeasLbl: 'Effort',
+    repBasis: 'Basis',
+    repGenerated: 'Generated on',
+    repTopics: 'Topics',
+    repTotalInq: 'Total Inquiries',
+    repWithTime: 'with recorded time',
+    repEffort: 'Resource Effort',
+    repNoTimes: 'No times recorded yet',
+    repWorkdays: 'workdays',
+    repOf: 'of',
+    repRate: 'Completion Rate',
+    repQuickWins: 'Quick Wins (Easy)',
+    repAmpel: 'Implementation Effort',
+    repDrivers: 'Top Resource Drivers (Volume & Time)',
+    repNoFilterMatch: 'No entries match the selected filter.',
+    repNoTimeline: 'No timeline data in selected range.',
+    repNoTime: 'no time',
+    repTrendPer: 'Trend per',
+    repAllTopics: '(all topics)',
+    repPeak: 'Peak',
+    repShowAllTopics: 'All topics',
+    repOverview: 'Detailed Overview',
+    repEmptyTable: 'No entries for this period / filter.',
+    repSavings: 'Impact & Savings',
+    repImplTopics: 'implemented topics',
+    repSolvedInq: 'resolved inquiries',
+    repPressure: 'Re-review & Pressure (recurring after rejection / low approval)',
+    repAfterwards: 'afterwards',
+    repCredits: 'Contributors & Credits',
+    repIdeaOne: 'idea',
+    repIdeas: 'ideas',
+    repMentions: 'mentions',
+    thDate: 'Date',
+    thTopic: 'Topic',
+    thAuthor: 'Logged by',
+    thChannel: 'Channel',
+    thAmpel: 'Effort',
+    thStatus: 'Status',
+    thVolume: 'Volume',
+    thDuration: 'Duration',
+    granDay: 'Day',
+    granWeek: 'Week',
+    granMonth: 'Month',
+    granYear: 'Year',
+    mgrAccess: 'Manager Access',
+    unlock: 'Unlock',
+    roleUser: 'User',
+    roleSupervisor: 'Supervisor',
+    roleManager: 'Manager',
+    roleAdmin: 'Admin',
+    entries: 'entries',
+    dbDisconnected: 'DB disconnected',
+    toastSaved: 'Saved.',
+    toastCaptured: 'Captured.',
+    toastCopied: 'Copied.',
+    toastCopyFail: 'Copy failed.',
+    toastDeleted: 'Deleted.',
+    toastMerged: 'Topics merged losslessly.',
+    toastSignedOut: 'Signed out.',
+    toastNoteSaved: 'Note saved.',
+    toastDecFbSaved: 'Decision feedback saved.',
+    toastVoteDown: 'Disagreement recorded.',
+    toastVoteUp: 'Approval recorded.',
+    toastMinTime: 'Please record at least 1 minute (e.g. 01:00).',
+    toastVisOwn: 'Active: Users only see own comments (Admins see all).',
+    toastVisAll: 'Active: Everyone sees all comments.',
+    toastSimilarTo: 'Similar to'
+  }
 };
 
+function t(key) {
+  return I18N[state.lang]?.[key] ?? I18N.de[key] ?? key;
+}
+
+function roleLabelFor(roleId) {
+  if (roleId === 'admin') return t('roleAdmin');
+  if (roleId === 'manager') return t('roleManager');
+  if (roleId === 'supervisor') return t('roleSupervisor');
+  return t('roleUser');
+}
+
+function channelDisplay(ch) {
+  if (state.lang !== 'en') return ch;
+  if (ch === 'Persönlich') return 'In-person';
+  if (ch === 'Telefon') return 'Phone';
+  if (ch === 'E-Mail') return 'E-mail';
+  return ch;
+}
+
+function feasDisplay(f) {
+  if (f === 'einfach') return t('easy');
+  if (f === 'mittel') return t('medium');
+  if (f === 'aufwaendig') return t('complex');
+  if (f === 'Alle') return t('all');
+  return t('unrated');
+}
+
+function statusDisplay(s) {
+  if (s === 'Umgesetzt') return t('done');
+  if (s === 'Abgelehnt') return t('rejected');
+  if (s === 'In Arbeit' || s === 'Angenommen') return t('inProgress');
+  if (s === 'Geprüft' || s === 'Bereit') return t('reviewed');
+  if (s === 'Offen') return t('open');
+  if (s === 'Alle') return t('all');
+  return t('newBadge');
+}
+
+const BUSINESS_VALUE_KEYS = {
+  zeitersparnis: 'valZeitersparnis',
+  kundenaufwand: 'valKundenaufwand',
+  erklaerung: 'valErklaerung',
+  fehler: 'valFehler',
+  umsatz: 'valUmsatz'
+};
+
+function valueDisplay(code) {
+  const key = BUSINESS_VALUE_KEYS[code];
+  return key ? t(key) : code;
+}
+
 const state = {
+  lang: localStorage.getItem('re_lang') === 'en' ? 'en' : 'de',
   view: 'board', // 'board' | 'report'
-  user: null, // { id, username, displayName, role: 'admin' | 'user' }
+  user: null, // { id, username, displayName, role }
   hasAdmin: false,
   authMode: 'login', // 'login' | 'register'
   channel: '',
+  businessValues: new Set(),
   ampel: 'alle',
   mode: 'all', // 'all' | 'active' | 'done'
   commentsVisibility: 'all', // 'all' | 'own_only'
@@ -48,6 +462,9 @@ const state = {
   expandedMentions: [],
   activeMentionId: null,
   showAllMentions: false,
+  mergeSourceId: null,
+  rolesTab: 'matrix', // 'matrix' | 'audit'
+  allStoriesCache: [],
   effortId: null,
   effortChannel: '',
   freshId: null,
@@ -153,7 +570,7 @@ function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = '
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="dur-popover hidden" role="dialog" aria-label="Zeitaufwand wählen">
-        <div class="wheel-head"><span>Min</span><span></span><span>Sek</span></div>
+        <div class="wheel-head"><span>Min</span><span></span><span>${esc(t('secShort'))}</span></div>
         <div class="wheel-body">
           <div class="wheel-highlight" aria-hidden="true"></div>
           <div class="wheel-col" data-wheel="min">${minItems}</div>
@@ -161,7 +578,7 @@ function renderDurationPickerHtml({ idAttr = '', initialSec = 0, placeholder = '
           <div class="wheel-col" data-wheel="sec">${secItems}</div>
         </div>
         <div class="wheel-foot">
-          <button type="button" class="text-link js-wheel-clear">Leeren</button>
+          <button type="button" class="text-link js-wheel-clear">${esc(t('clear'))}</button>
           <button type="button" class="st-btn active js-wheel-done" style="padding:3px 10px;">OK</button>
         </div>
       </div>
@@ -377,6 +794,10 @@ function canSeeAllCommentsUi() {
   return ['admin', 'manager', 'supervisor'].includes(state.user?.role);
 }
 
+function canDecideUi() {
+  return ['admin', 'manager', 'supervisor'].includes(state.user?.role) || !state.hasAdmin;
+}
+
 function renderAuthState() {
   const profBtn = document.getElementById('btn-profile');
   const profIcon = document.getElementById('profile-icon');
@@ -393,7 +814,7 @@ function renderAuthState() {
 
   if (state.user) {
     const elevated = canSeeAllCommentsUi();
-    const roleLabel = ROLE_NAMES[state.user.role] || 'Nutzer';
+    const roleLabel = roleLabelFor(state.user.role);
     profBtn.classList.toggle('is-admin', elevated);
     profBtn.classList.toggle('is-user', !elevated);
     profIcon.outerHTML = elevated
@@ -413,40 +834,75 @@ function renderAuthState() {
       </div>
       ${
         canViewReports()
-          ? `<button type="button" class="pop-action" id="pop-open-report">${LUCIDE.barChart}<span>Manager-Report</span></button>`
+          ? `<button type="button" class="pop-action" id="pop-open-report">${LUCIDE.barChart}<span>${esc(t('report'))}</span></button>`
           : ''
       }
       ${
         isAdminUser()
-          ? `<button type="button" class="pop-action" id="pop-open-roles">${LUCIDE.users}<span>Rechte &amp; Benutzer</span></button>`
+          ? `<button type="button" class="pop-action" id="pop-open-roles">${LUCIDE.users}<span>${esc(t('rolesAndUsers'))}</span></button>`
           : ''
       }
-      <button type="button" class="pop-action danger" id="pop-logout">${LUCIDE.logOut}<span>Abmelden</span></button>
+      <button type="button" class="pop-action danger" id="pop-logout">${LUCIDE.logOut}<span>${esc(t('signOut'))}</span></button>
     `;
   } else {
     profBtn.classList.remove('is-admin', 'is-user');
     profIcon.outerHTML = LUCIDE.user.replace('<svg ', '<svg id="profile-icon" ');
     profLabel.textContent = '';
     profLabel.classList.add('hidden');
-    profBtn.title = 'Anmelden / Profil';
+    profBtn.title = t('signInProfile');
     pop.classList.add('hidden');
   }
 }
 
-async function openRolesModal() {
+async function openRolesModal(tab = state.rolesTab || 'matrix') {
+  state.rolesTab = tab;
   const modal = document.getElementById('roles-modal');
   const body = document.getElementById('roles-modal-body');
   modal.classList.remove('hidden');
-  body.innerHTML = '<div style="padding:16px; color:var(--silver-3);">Lade Rechtematrix…</div>';
+  body.innerHTML = `<div style="padding:16px; color:var(--silver-3);">${esc(t('loading'))}</div>`;
+
+  const tabsHtml = `
+    <div class="auth-tabs" style="margin-bottom:16px;">
+      <button type="button" class="auth-tab js-roles-tab ${tab === 'matrix' ? 'active' : ''}" data-rtab="matrix">${esc(t('rolesAndUsers'))}</button>
+      <button type="button" class="auth-tab js-roles-tab ${tab === 'audit' ? 'active' : ''}" data-rtab="audit">${esc(t('auditLog'))}</button>
+    </div>
+  `;
 
   try {
+    if (tab === 'audit') {
+      const entries = await api('/api/decisions');
+      const rows =
+        entries.length === 0
+          ? `<div style="font-size:0.82rem; color:var(--silver-3); padding:10px 0;">${esc(t('auditEmpty'))}</div>`
+          : entries
+              .map((d) => {
+                const dt = fmtDateCH(d.created_at);
+                const tm = d.created_at
+                  ? new Date(d.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
+                  : '';
+                return `
+                  <div class="user-role-row" style="align-items:flex-start;">
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:0.73rem; color:var(--silver-3);">${esc(dt)} · ${esc(tm)} · <strong>${esc(d.actor_role || '')}</strong></div>
+                      <div style="font-size:0.84rem; font-weight:600; color:var(--ink); margin-top:2px;">${esc(d.entity_title)}</div>
+                      <div style="font-size:0.79rem; color:var(--silver-2); margin-top:2px;">${esc(d.reason)}</div>
+                    </div>
+                    <span class="tag-mini tag-blue">${esc(d.action)}</span>
+                  </div>
+                `;
+              })
+              .join('');
+      body.innerHTML = `${tabsHtml}<div class="user-role-list">${rows}</div>`;
+      return;
+    }
+
     const data = await api('/api/users');
     const matrixRows = data.roles
       .map((r) => {
         const p = r.permissions;
         return `
           <tr>
-            <td>${esc(r.label)}</td>
+            <td>${esc(roleLabelFor(r.id))}</td>
             <td>${p.captureFeedback ? LUCIDE.check : LUCIDE.minus}</td>
             <td>${p.seeAllComments ? LUCIDE.check : '<span style="font-size:0.7rem; color:var(--silver-3);">Opt.</span>'}</td>
             <td>${p.decideStories ? LUCIDE.check : LUCIDE.minus}</td>
@@ -469,7 +925,7 @@ async function openRolesModal() {
             ${data.roles
               .map(
                 (r) =>
-                  `<button type="button" class="ch-btn js-set-role ${u.role === r.id ? 'active' : ''}" data-uid="${u.id}" data-role="${r.id}">${esc(r.label)}</button>`
+                  `<button type="button" class="ch-btn js-set-role ${u.role === r.id ? 'active' : ''}" data-uid="${u.id}" data-role="${r.id}">${esc(roleLabelFor(r.id))}</button>`
               )
               .join('')}
           </div>
@@ -479,25 +935,26 @@ async function openRolesModal() {
       .join('');
 
     body.innerHTML = `
-      <div class="drawer-label">Rechtematrix</div>
+      ${tabsHtml}
+      <div class="drawer-label">${esc(t('matrixTitle'))}</div>
       <table class="matrix-table">
         <thead>
           <tr>
-            <th>Rolle</th>
-            <th>Erfassen</th>
-            <th>Alle Komm.</th>
-            <th>Entscheide</th>
-            <th>Report / Excel</th>
-            <th>Rechte</th>
+            <th>${esc(t('colRole'))}</th>
+            <th>${esc(t('colCapture'))}</th>
+            <th>${esc(t('colAllComm'))}</th>
+            <th>${esc(t('colDecide'))}</th>
+            <th>${esc(t('colReport'))}</th>
+            <th>${esc(t('colRights'))}</th>
           </tr>
         </thead>
         <tbody>${matrixRows}</tbody>
       </table>
-      <div class="drawer-label">Registrierte Benutzer (${data.users.length})</div>
-      <div class="user-role-list">${userRows || '<div style="font-size:0.8rem; color:var(--silver-3);">Keine Konten vorhanden.</div>'}</div>
+      <div class="drawer-label">${esc(t('registeredUsers'))} (${data.users.length})</div>
+      <div class="user-role-list">${userRows || `<div style="font-size:0.8rem; color:var(--silver-3);">${esc(t('noAccounts'))}</div>`}</div>
     `;
   } catch (err) {
-    body.innerHTML = `<div class="auth-error">${esc(err.message)}</div>`;
+    body.innerHTML = `${tabsHtml}<div class="auth-error">${esc(err.message)}</div>`;
   }
 }
 
@@ -515,18 +972,18 @@ function openAuthModal(mode = 'login', customHint = '') {
   const errBox = document.getElementById('auth-error');
 
   errBox.classList.add('hidden');
-  document.querySelectorAll('.auth-tab').forEach((t) => t.classList.toggle('active', t.dataset.authMode === mode));
+  document.querySelectorAll('.auth-tab[data-auth-mode]').forEach((tabEl) => tabEl.classList.toggle('active', tabEl.dataset.authMode === mode));
   const isReg = mode === 'register';
   nameWrap.classList.toggle('hidden', !isReg);
-  title.textContent = isReg ? 'Konto erstellen' : 'Anmelden';
-  submitBtn.textContent = isReg ? 'Konto erstellen' : 'Anmelden';
+  title.textContent = isReg ? t('register') : t('signIn');
+  submitBtn.textContent = isReg ? t('register') : t('signIn');
   hint.textContent =
     customHint ||
     (isReg && !state.hasAdmin
-      ? 'Erstes Konto erhält automatisch Admin-Rechte (Chef).'
+      ? t('hintFirstAdmin')
       : isReg
-        ? 'Neues Nutzer-Konto für dein Team.'
-        : 'Mit Benutzername und Passwort anmelden.');
+        ? t('hintNewUser')
+        : t('hintLogin'));
 
   modal.classList.remove('hidden');
   modal.querySelector(isReg ? 'input[name="displayName"]' : 'input[name="username"]')?.focus();
@@ -554,18 +1011,18 @@ async function loadAuthAndSettings() {
 }
 
 function ampelDot(feasibility) {
-  if (feasibility === 'einfach') return '<span class="dot-sm dot-green" title="Einfach"></span>';
-  if (feasibility === 'mittel') return '<span class="dot-sm dot-amber" title="Mittel"></span>';
-  if (feasibility === 'aufwaendig') return '<span class="dot-sm dot-red" title="Aufwändig"></span>';
-  return '<span class="dot-sm dot-open" title="Unbewertet"></span>';
+  if (feasibility === 'einfach') return `<span class="dot-sm dot-green" title="${esc(t('easy'))}"></span>`;
+  if (feasibility === 'mittel') return `<span class="dot-sm dot-amber" title="${esc(t('medium'))}"></span>`;
+  if (feasibility === 'aufwaendig') return `<span class="dot-sm dot-red" title="${esc(t('complex'))}"></span>`;
+  return `<span class="dot-sm dot-open" title="${esc(t('unrated'))}"></span>`;
 }
 
 function statusBadge(status) {
-  if (status === 'Umgesetzt') return '<span class="tag-mini tag-green">Erledigt</span>';
-  if (status === 'Abgelehnt') return '<span class="tag-mini tag-red">Abgelehnt</span>';
-  if (status === 'In Arbeit' || status === 'Angenommen') return '<span class="tag-mini tag-blue">In Arbeit</span>';
-  if (status === 'Geprüft' || status === 'Bereit') return '<span class="tag-mini">Geprüft</span>';
-  return '<span class="tag-mini">Neu</span>';
+  if (status === 'Umgesetzt') return `<span class="tag-mini tag-green">${esc(t('done'))}</span>`;
+  if (status === 'Abgelehnt') return `<span class="tag-mini tag-red">${esc(t('rejected'))}</span>`;
+  if (status === 'In Arbeit' || status === 'Angenommen') return `<span class="tag-mini tag-blue">${esc(t('inProgress'))}</span>`;
+  if (status === 'Geprüft' || status === 'Bereit') return `<span class="tag-mini">${esc(t('reviewed'))}</span>`;
+  return `<span class="tag-mini">${esc(t('newBadge'))}</span>`;
 }
 
 function loopBars(status) {
@@ -589,6 +1046,122 @@ function loopBars(status) {
   `;
 }
 
+function applyLanguageToStaticUi() {
+  document.documentElement.lang = state.lang === 'en' ? 'en' : 'de-CH';
+  document.querySelectorAll('.lang-btn').forEach((b) => b.classList.toggle('active', b.dataset.lang === state.lang));
+
+  const qEl = document.getElementById('filter-q');
+  if (qEl) qEl.placeholder = t('search');
+  const instSpan = document.querySelector('#btn-install-app [data-i18n="install"]');
+  if (instSpan) instSpan.textContent = t('install');
+  const repLbl = document.getElementById('btn-report-label');
+  if (repLbl) repLbl.textContent = state.view === 'report' ? t('board') : t('report');
+
+  const fbTitle = document.getElementById('fb-title');
+  if (fbTitle) fbTitle.placeholder = t('titlePlaceholder');
+  const fbText = document.getElementById('fb-text');
+  if (fbText) fbText.placeholder = t('capturePlaceholder');
+  const fbValLbl = document.getElementById('fb-value-label');
+  if (fbValLbl) fbValLbl.textContent = t('valueLabel');
+  document.querySelectorAll('.val-badge[data-value]').forEach((b) => {
+    b.textContent = valueDisplay(b.dataset.value);
+  });
+  const fbAuthor = document.getElementById('fb-author');
+  if (fbAuthor) fbAuthor.placeholder = t('authorPlaceholder');
+  const fbRef = document.getElementById('fb-ref');
+  if (fbRef) fbRef.placeholder = t('refPlaceholder');
+  const compDur = document.querySelector('#composer-dur-picker .dur-input');
+  if (compDur) compDur.placeholder = t('timePlaceholder');
+  const compClear = document.querySelector('#composer-dur-picker .js-wheel-clear');
+  if (compClear) compClear.textContent = t('clear');
+  const compSecHead = document.querySelector('#composer-dur-picker .wheel-head span:last-child');
+  if (compSecHead) compSecHead.textContent = t('secShort');
+  const submitBtn = document.querySelector('#feedback-form .btn-primary');
+  if (submitBtn) submitBtn.textContent = t('submit');
+
+  const chMap = { Persönlich: 'chPersonal', Telefon: 'chPhone', Chat: 'chChat', 'E-Mail': 'chEmail' };
+  document.querySelectorAll('#feedback-form .ch-btn').forEach((b) => {
+    const k = chMap[b.dataset.channel];
+    if (k) b.textContent = t(k);
+  });
+
+  const ampelLabels = {
+    alle: `${t('all')} <span id="count-all">${document.getElementById('count-all')?.textContent || '0'}</span>`,
+    einfach: `<span class="dot-sm dot-green"></span>${t('easy')} <span id="count-green">${document.getElementById('count-green')?.textContent || '0'}</span>`,
+    mittel: `<span class="dot-sm dot-amber"></span>${t('medium')} <span id="count-amber">${document.getElementById('count-amber')?.textContent || '0'}</span>`,
+    aufwaendig: `<span class="dot-sm dot-red"></span>${t('complex')} <span id="count-red">${document.getElementById('count-red')?.textContent || '0'}</span>`
+  };
+  document.querySelectorAll('.ampel-btn[data-ampel]').forEach((b) => {
+    if (ampelLabels[b.dataset.ampel]) b.innerHTML = ampelLabels[b.dataset.ampel];
+  });
+
+  const modeMap = { all: 'all', active: 'inProgress', done: 'done' };
+  document.querySelectorAll('.st-btn[data-mode]').forEach((b) => {
+    if (modeMap[b.dataset.mode]) b.textContent = t(modeMap[b.dataset.mode]);
+  });
+
+  // Report controls
+  const setTxt = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t(key);
+  };
+  setTxt('rep-range-today', 'today');
+  setTxt('rep-range-7d', 'd7');
+  setTxt('rep-range-30d', 'd30');
+  setTxt('rep-year-curr', 'year');
+  setTxt('rep-year-prev', 'prevYear');
+  const pdfSpan = document.querySelector('#btn-export-pdf span');
+  if (pdfSpan) pdfSpan.textContent = t('exportPdf');
+
+  const granMap = { day: 'perDay', week: 'perWeek', month: 'perMonth', year: 'perYear' };
+  document.querySelectorAll('[data-rep-gran]').forEach((b) => {
+    if (granMap[b.dataset.repGran]) b.textContent = t(granMap[b.dataset.repGran]);
+  });
+  const repFeasMap = {
+    Alle: t('all'),
+    einfach: `<span class="dot-sm dot-green"></span>${t('easy')}`,
+    mittel: `<span class="dot-sm dot-amber"></span>${t('medium')}`,
+    aufwaendig: `<span class="dot-sm dot-red"></span>${t('complex')}`
+  };
+  document.querySelectorAll('[data-rep-feas]').forEach((b) => {
+    if (repFeasMap[b.dataset.repFeas]) b.innerHTML = repFeasMap[b.dataset.repFeas];
+  });
+  const repStatusMap = { Alle: 'all', Umgesetzt: 'done', 'In Arbeit': 'inProgress', Offen: 'open', Abgelehnt: 'rejected' };
+  document.querySelectorAll('[data-rep-status]').forEach((b) => {
+    if (repStatusMap[b.dataset.repStatus]) b.textContent = t(repStatusMap[b.dataset.repStatus]);
+  });
+  const tmLbl = document.querySelector('#rep-timemode-pills .sep');
+  if (tmLbl) tmLbl.textContent = t('timeBasis');
+  document.querySelectorAll('[data-rep-timemode]').forEach((b) => {
+    b.textContent = b.dataset.repTimemode === 'measured' ? t('measured') : t('projected');
+  });
+  const minLbl = document.querySelector('#rep-min-pills .sep');
+  if (minLbl) minLbl.textContent = t('fallbackEmpty');
+  const visLbl = document.querySelector('#rep-vis-pills .sep');
+  if (visLbl) visLbl.textContent = t('commentsLbl');
+  document.querySelectorAll('[data-vis]').forEach((b) => {
+    b.textContent = b.dataset.vis === 'all' ? t('visAll') : t('visOwn');
+  });
+
+  // Modals static labels
+  const rmTitle = document.getElementById('roles-modal-title');
+  if (rmTitle) rmTitle.textContent = t('rolesModalTitle');
+  const rmHint = document.getElementById('roles-modal-hint');
+  if (rmHint) rmHint.textContent = t('rolesModalHint');
+  document.querySelectorAll('.auth-tab[data-auth-mode]').forEach((b) => {
+    b.textContent = b.dataset.authMode === 'register' ? t('register') : t('signIn');
+  });
+  const authForm = document.getElementById('auth-form');
+  if (authForm) {
+    const nIn = authForm.querySelector('input[name="displayName"]');
+    const uIn = authForm.querySelector('input[name="username"]');
+    const pIn = authForm.querySelector('input[name="password"]');
+    if (nIn) nIn.placeholder = t('authorPlaceholder');
+    if (uIn) uIn.placeholder = t('username');
+    if (pIn) pIn.placeholder = t('password');
+  }
+}
+
 function setView(viewName) {
   state.view = viewName;
   const isReport = viewName === 'report';
@@ -598,7 +1171,7 @@ function setView(viewName) {
   const btn = document.getElementById('btn-toggle-report');
   const lbl = document.getElementById('btn-report-label');
   btn.classList.toggle('active', isReport);
-  if (lbl) lbl.textContent = isReport ? 'Board' : 'Manager-Report';
+  if (lbl) lbl.textContent = isReport ? t('board') : t('report');
   if (isReport) {
     loadReport();
   }
@@ -609,12 +1182,12 @@ async function loadHealth() {
     const h = await api('/health');
     document.getElementById('ops-dot').className = 'pulse-dot ok';
     document.getElementById('ops-db').textContent = `DB ${h.db} (${h.dbLatencyMs} ms)`;
-    document.getElementById('ops-counts').textContent = `${h.counts.stories} Einträge`;
+    document.getElementById('ops-counts').textContent = `${h.counts.stories} ${t('entries')}`;
     document.getElementById('ops-version').textContent = h.version;
     document.getElementById('ops-commit').textContent = String(h.commit || 'local').slice(0, 7);
   } catch {
     document.getElementById('ops-dot').className = 'pulse-dot err';
-    document.getElementById('ops-db').textContent = 'DB getrennt';
+    document.getElementById('ops-db').textContent = t('dbDisconnected');
   }
 }
 
@@ -624,6 +1197,7 @@ async function loadIdeas() {
   if (q) params.set('q', q);
 
   const allIdeas = await api(`/api/stories?${params.toString()}`);
+  state.allStoriesCache = allIdeas;
 
   const totalMentions = allIdeas.reduce((sum, i) => sum + (Number(i.votes) || 1), 0);
   document.getElementById('count-all').textContent = `${allIdeas.length} (${totalMentions}×)`;
@@ -643,8 +1217,36 @@ async function loadIdeas() {
 
   const listEl = document.getElementById('ideas-list');
   if (ideas.length === 0) {
-    listEl.innerHTML = '<div class="empty-state">Noch keine Einträge.</div>';
+    listEl.innerHTML = `<div class="empty-state">${esc(t('empty'))}</div>`;
     return;
+  }
+
+  function renderCasePreviewHtml(m) {
+    if (!m) return '';
+    const dt = fmtDateCH(m.created_at);
+    const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+    const dur = Number(m.duration_seconds) || 0;
+    return `
+      <div class="case-preview-top">
+        <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+          ${dur > 0 ? `<span class="time-chip">${LUCIDE.clock} ${esc(fmtMMSS(dur))}</span>` : ''}
+          ${m.channel ? `<span class="tag-mini">${esc(channelDisplay(m.channel))}</span>` : ''}
+          ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
+        </div>
+      </div>
+      <p class="case-preview-quote ${m.feedback_note ? '' : 'muted'}">
+        ${m.feedback_note ? esc(m.feedback_note) : esc(t('noNote'))}
+      </p>
+      ${
+        m.customer_ref || m.recorded_by
+          ? `<div class="case-preview-meta">
+              ${m.customer_ref ? `<span>${esc(t('customer'))}: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
+              ${m.recorded_by ? `<span>${esc(t('loggedBy'))}: <strong>${esc(m.recorded_by)}</strong></span>` : ''}
+            </div>`
+          : ''
+      }
+    `;
   }
 
   listEl.innerHTML = ideas
@@ -653,8 +1255,7 @@ async function loadIdeas() {
       const channel = (item.channel || '').trim();
       const author = item.submitted_by ? ` · ${item.submitted_by}` : '';
       const dateStr = fmtDateCH(item.created_at);
-      const tasks = Array.isArray(item.tasks_json) ? item.tasks_json : [];
-      const criteria = Array.isArray(item.acceptance_criteria_json) ? item.acceptance_criteria_json : [];
+      const businessValues = Array.isArray(item.business_values_json) ? item.business_values_json : [];
       const expanded = state.expandedId === item.id;
       const effortOpen = state.effortId === item.id;
       const voted = state.votedIds.has(item.id);
@@ -675,17 +1276,22 @@ async function loadIdeas() {
       const recentRefs = refs.filter((r) => !r.createdAt || new Date(r.createdAt).getTime() >= cutoff90d);
 
       const pressureBadge = hasPressure
-        ? `<span class="tag-mini tag-pressure">${postMentions > 0 ? `+${postMentions}× nach Ablehnung` : 'Neu prüfen'}</span>`
+        ? `<span class="tag-mini tag-pressure">${postMentions > 0 ? `+${postMentions}× ${esc(t('afterReject'))}` : esc(t('reReview'))}</span>`
         : '';
 
       const timeChip =
         totalSec > 0
-          ? `<span class="time-chip" title="Echt erfasster Zeitaufwand aus ${timedCnt} Fällen">${LUCIDE.clock} ${esc(fmtDurationHuman(totalSec))}${avgSec > 0 ? ` · Ø ${esc(fmtMMSS(avgSec))}` : ''}</span>`
+          ? `<span class="time-chip">${LUCIDE.clock} ${esc(fmtDurationHuman(totalSec))}${avgSec > 0 ? ` · Ø ${esc(fmtMMSS(avgSec))}` : ''}</span>`
           : '';
 
       const loopFollowupChip =
         item.status === 'Umgesetzt' && recentRefs.length > 0
-          ? `<span class="tag-mini tag-green" title="Innerhalb von 90 Tagen umgesetzt — aktive Rückmeldung an diese Ref-IDs sinnvoll">Rückmeldung sinnvoll (${recentRefs.length} Ref.)</span>`
+          ? `<span class="tag-mini tag-green">${esc(t('followupUseful'))} (${recentRefs.length} ${esc(t('refShort'))})</span>`
+          : '';
+
+      const valueChips =
+        businessValues.length > 0
+          ? businessValues.map((v) => `<span class="tag-mini tag-value">${esc(valueDisplay(v))}</span>`).join('')
           : '';
 
       const refsLine =
@@ -695,16 +1301,16 @@ async function loadIdeas() {
                 .slice(-5)
                 .map((r) => `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(r.ref)}</span>`)
                 .join('')}
-              ${refs.length > 5 ? `<span style="color:var(--silver-3);">+${refs.length - 5} weitere</span>` : ''}
+              ${refs.length > 5 ? `<span style="color:var(--silver-3);">+${refs.length - 5} ${esc(t('moreSuffix'))}</span>` : ''}
             </div>`
           : '';
 
       const decisionVoteHtml = hasDecision
         ? `
           <div class="decision-vote-row">
-            <span>Entscheid:</span>
-            <button type="button" class="dv-btn js-dec-vote" data-id="${item.id}" data-sentiment="up" title="Mit Entscheid einverstanden">${LUCIDE.thumbsUp} ${decUp}</button>
-            <button type="button" class="dv-btn js-dec-vote ${decDown > decUp ? 'down-hot' : ''}" data-id="${item.id}" data-sentiment="down" title="Unzufrieden / Druck erhöhen">${LUCIDE.thumbsDown} ${decDown}</button>
+            <span>${esc(t('decisionLbl'))}</span>
+            <button type="button" class="dv-btn js-dec-vote" data-id="${item.id}" data-sentiment="up">${LUCIDE.thumbsUp} ${decUp}</button>
+            <button type="button" class="dv-btn js-dec-vote ${decDown > decUp ? 'down-hot' : ''}" data-id="${item.id}" data-sentiment="down">${LUCIDE.thumbsDown} ${decDown}</button>
             <button type="button" class="text-link js-dec-comment-open" data-id="${item.id}">+ Feedback</button>
           </div>
           ${
@@ -712,8 +1318,8 @@ async function loadIdeas() {
               ? `
                 <form class="decision-form js-dec-comment-form" data-id="${item.id}" style="margin-top:6px;">
                   <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                    <input type="text" name="comment" required placeholder="Kurze Rückmeldung zum Entscheid…" style="flex:1 1 200px;" autofocus />
-                    <button type="submit" class="st-btn active">Senden</button>
+                    <input type="text" name="comment" required placeholder="${esc(t('decFeedbackPlaceholder'))}" style="flex:1 1 200px;" autofocus />
+                    <button type="submit" class="st-btn active">${esc(t('send'))}</button>
                   </div>
                 </form>
               `
@@ -737,15 +1343,15 @@ async function loadIdeas() {
         ${
           wording
             ? `<div class="note-line">
-                <div><span class="note-key">Rückmeldung / Entscheid</span>${esc(wording)}</div>
-                <button type="button" class="text-link js-copy" data-text="${esc(wording)}">${LUCIDE.copy} Kopieren</button>
+                <div><span class="note-key">${esc(t('feedbackDecisionKey'))}</span>${esc(wording)}</div>
+                <button type="button" class="text-link js-copy" data-text="${esc(wording)}">${LUCIDE.copy} ${esc(t('copy'))}</button>
               </div>`
             : ''
         }
         ${
           item.internal_note
             ? `<div class="note-line internal">
-                <div><span class="note-key">Systemlogik / Dev</span>${esc(item.internal_note)}</div>
+                <div><span class="note-key">${esc(t('internalNoteKey'))}</span>${esc(item.internal_note)}</div>
               </div>`
             : ''
         }
@@ -756,22 +1362,22 @@ async function loadIdeas() {
         ? `
           <form class="quant-box js-quant-form" data-id="${item.id}" style="margin-top:10px;">
             <div class="quant-row">
-              ${renderDurationPickerHtml({ initialSec: 0, placeholder: 'Zeit' })}
-              <input type="text" name="customerRef" class="author-input" placeholder="Kunde (optional)" aria-label="Betroffener Kunde (optional)" style="width:132px;" />
-              <input type="text" name="recordedBy" class="author-input" placeholder="Erfasst von" aria-label="Erfasst von (optional)" style="width:124px;" />
-              <input type="text" name="interactionRef" class="ref-input" placeholder="CRM / Ref-ID" aria-label="CRM- oder Ticket-Referenz (optional)" style="width:102px;" />
+              ${renderDurationPickerHtml({ initialSec: 0, placeholder: t('timePlaceholder') })}
+              <input type="text" name="customerRef" class="author-input" placeholder="${esc(t('customerOpt'))}" aria-label="${esc(t('customerOpt'))}" style="width:132px;" />
+              <input type="text" name="recordedBy" class="author-input" placeholder="${esc(t('loggedBy'))}" aria-label="${esc(t('loggedBy'))}" style="width:124px;" />
+              <input type="text" name="interactionRef" class="ref-input" placeholder="${esc(t('refPlaceholder'))}" aria-label="${esc(t('refPlaceholder'))}" style="width:102px;" />
             </div>
             <div class="quant-row">
-              <input type="text" name="feedbackNote" class="quant-note-input" placeholder="Kundenfeedback zu diesem Fall (optional)…" aria-label="Kundenfeedback zu diesem Fall" />
-              <div class="channel-group" role="group" aria-label="Kanal dieses Falls">
+              <input type="text" name="feedbackNote" class="quant-note-input" placeholder="${esc(t('caseFeedback'))}" aria-label="${esc(t('caseFeedback'))}" />
+              <div class="channel-group" role="group" aria-label="Kanal">
                 ${['Persönlich', 'Telefon', 'Chat', 'E-Mail']
                   .map(
                     (ch) =>
-                      `<button type="button" class="ch-btn js-eff-ch ${state.effortChannel === ch ? 'active' : ''}" data-channel="${ch}">${ch}</button>`
+                      `<button type="button" class="ch-btn js-eff-ch ${state.effortChannel === ch ? 'active' : ''}" data-channel="${ch}">${esc(channelDisplay(ch))}</button>`
                   )
                   .join('')}
               </div>
-              <button type="submit" class="btn-primary js-quant-submit">+1 Erfassen</button>
+              <button type="submit" class="btn-primary js-quant-submit">${esc(t('addVote'))}</button>
             </div>
           </form>
         `
@@ -782,57 +1388,33 @@ async function loadIdeas() {
       const activeMention =
         mentionsList.find((m) => m.id === state.activeMentionId) || mentionsList[0] || null;
 
-      function renderCasePreviewHtml(m) {
-        if (!m) return '';
-        const dt = fmtDateCH(m.created_at);
-        const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
-        const dur = Number(m.duration_seconds) || 0;
-        return `
-          <div class="case-preview-top">
-            <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
-            <div style="display:flex; gap:6px; align-items:center;">
-              ${dur > 0 ? `<span class="time-chip">${LUCIDE.clock} ${esc(fmtMMSS(dur))}</span>` : ''}
-              ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
-              ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
-            </div>
-          </div>
-          <p class="case-preview-quote ${m.feedback_note ? '' : 'muted'}">
-            ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
-          </p>
-          ${
-            m.customer_ref || m.recorded_by
-              ? `<div class="case-preview-meta">
-                  ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
-                  ${m.recorded_by ? `<span>Erfasst von: <strong>${esc(m.recorded_by)}</strong></span>` : ''}
-                </div>`
-              : ''
-          }
-        `;
-      }
+      const showAllText = t('showAllSuffix')
+        ? `${t('showAllPrefix')} ${mentionsList.length} ${t('showAllSuffix')}`
+        : `${t('showAllPrefix')} ${mentionsList.length}`;
 
       const tilesHtml = expanded
         ? `
           <div class="tiles-section">
             <div class="tiles-head">
               <div class="drawer-label" style="margin:0;">
-                ${state.commentsVisibility === 'own_only' && !canSeeAllCommentsUi() ? `Eigene Feedbacks (${mentionsList.length})` : `Feedbacks & Logs (${mentionsList.length})`}
+                ${state.commentsVisibility === 'own_only' && !canSeeAllCommentsUi() ? `${esc(t('ownCasesTitle'))} (${mentionsList.length})` : `${esc(t('casesTitle'))} (${mentionsList.length})`}
               </div>
               ${
                 mentionsList.length > 12
-                  ? `<button type="button" class="text-link js-toggle-all-mentions">${state.showAllMentions ? 'Weniger' : `Alle ${mentionsList.length} anzeigen`}</button>`
+                  ? `<button type="button" class="text-link js-toggle-all-mentions">${state.showAllMentions ? esc(t('showLess')) : esc(showAllText)}</button>`
                   : ''
               }
             </div>
             ${
               mentionsList.length === 0
-                ? '<div style="font-size:0.8rem; color:var(--silver-3);">Noch keine Einzelfälle erfasst.</div>'
+                ? `<div style="font-size:0.8rem; color:var(--silver-3);">${esc(t('noCases'))}</div>`
                 : `
                   <div class="badge-cloud">
                     ${visibleMentions
                       .map((m) => {
                         const shortDate = m.created_at ? fmtDateCH(m.created_at).slice(0, 5) : '';
                         const dur = Number(m.duration_seconds) || 0;
-                        const label = m.customer_ref || m.recorded_by || m.channel || '';
+                        const label = m.customer_ref || m.recorded_by || (m.channel ? channelDisplay(m.channel) : '');
                         const isActive = activeMention && activeMention.id === m.id;
                         return `
                           <button type="button" class="case-badge js-case-badge ${isActive ? 'active' : ''}" data-mention-id="${m.id}">
@@ -852,50 +1434,90 @@ async function loadIdeas() {
         `
         : '';
 
+      const allowDecide = canDecideUi();
+      const mergeTargets =
+        expanded && state.mergeSourceId === item.id
+          ? state.allStoriesCache.filter((other) => other.id !== item.id).slice(0, 8)
+          : [];
+
+      const mergeBoxHtml =
+        expanded && state.mergeSourceId === item.id && allowDecide
+          ? `
+            <div class="case-preview">
+              <div class="case-preview-top">
+                <strong style="color:var(--ink);">${esc(t('mergePrompt'))}</strong>
+                <button type="button" class="text-link js-merge-cancel">${esc(t('cancel'))}</button>
+              </div>
+              <div class="badge-cloud">
+                ${
+                  mergeTargets.length === 0
+                    ? `<span style="font-size:0.78rem; color:var(--silver-3);">${esc(t('noMergeTarget'))}</span>`
+                    : mergeTargets
+                        .map(
+                          (tgt) =>
+                            `<button type="button" class="case-badge js-merge-target" data-source="${item.id}" data-target="${tgt.id}"><span>${esc(tgt.title.slice(0, 46))}</span> <span class="case-badge-dur">${tgt.votes}×</span></button>`
+                        )
+                        .join('')
+                }
+              </div>
+            </div>
+          `
+          : '';
+
       const drawerHtml = expanded
         ? `
           <div class="idea-drawer">
             ${tilesHtml}
 
             <div class="drawer-row">
-              <div class="feas-group">
-                <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>Einfach</button>
-                <button type="button" class="feas-btn js-feas ${feas === 'mittel' ? 'active-mittel' : ''}" data-id="${item.id}" data-feas="mittel"><span class="dot-sm dot-amber"></span>Mittel</button>
-                <button type="button" class="feas-btn js-feas ${feas === 'aufwaendig' ? 'active-aufwaendig' : ''}" data-id="${item.id}" data-feas="aufwaendig"><span class="dot-sm dot-red"></span>Aufwändig</button>
-              </div>
+              ${
+                allowDecide
+                  ? `<div class="feas-group">
+                      <button type="button" class="feas-btn js-feas ${feas === 'einfach' ? 'active-einfach' : ''}" data-id="${item.id}" data-feas="einfach"><span class="dot-sm dot-green"></span>${esc(t('easy'))}</button>
+                      <button type="button" class="feas-btn js-feas ${feas === 'mittel' ? 'active-mittel' : ''}" data-id="${item.id}" data-feas="mittel"><span class="dot-sm dot-amber"></span>${esc(t('medium'))}</button>
+                      <button type="button" class="feas-btn js-feas ${feas === 'aufwaendig' ? 'active-aufwaendig' : ''}" data-id="${item.id}" data-feas="aufwaendig"><span class="dot-sm dot-red"></span>${esc(t('complex'))}</button>
+                    </div>`
+                  : '<div></div>'
+              }
               <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                <button type="button" class="text-link js-jira" data-id="${item.id}" title="Übergibt als Story oder Feature (je nach Ampel)">${LUCIDE.arrowUpRight} Jira</button>
-                <button type="button" class="text-link danger js-delete" data-id="${item.id}">${LUCIDE.trash} Löschen</button>
+                ${allowDecide && state.allStoriesCache.length > 1 ? `<button type="button" class="text-link js-merge-open" data-id="${item.id}">${LUCIDE.gitMerge} ${esc(t('merge'))}</button>` : ''}
+                ${allowDecide ? `<button type="button" class="text-link danger js-delete" data-id="${item.id}">${LUCIDE.trash} ${esc(t('delete'))}</button>` : ''}
               </div>
             </div>
 
+            ${mergeBoxHtml}
+
             <form class="decision-form js-notes" data-id="${item.id}">
-              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Systemlogik / Fachnotiz (intern)…" />
+              <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="${esc(t('notePlaceholder'))}" />
               <div style="display:flex; justify-content:flex-end;">
-                <button type="submit" class="st-btn active">Notiz sichern</button>
+                <button type="submit" class="st-btn active">${esc(t('saveNote'))}</button>
               </div>
             </form>
 
-            <div>
-              <div class="drawer-label">Status &amp; Begründung</div>
-              <div class="feas-group">
-                <button type="button" class="st-btn js-pick ${pending?.status === 'Geprüft' ? 'active' : ''}" data-id="${item.id}" data-status="Geprüft">Geprüft</button>
-                <button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">In Arbeit</button>
-                <button type="button" class="st-btn js-pick ${pending?.status === 'Umgesetzt' ? 'active' : ''}" data-id="${item.id}" data-status="Umgesetzt">Erledigt</button>
-                <button type="button" class="st-btn js-pick ${pending?.status === 'Abgelehnt' ? 'active' : ''}" data-id="${item.id}" data-status="Abgelehnt">Ablehnen</button>
-              </div>
-              ${
-                pending
-                  ? `
-                    <form class="decision-form js-decide" data-id="${item.id}" data-status="${esc(pending.status)}" style="margin-top:10px;">
-                      <textarea name="publicResponse" rows="2" required placeholder="Begründung / Rückmeldung zum Entscheid…"></textarea>
-                      <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="Interne Fachnotiz (optional)" />
-                      <div><button type="submit" class="btn-primary">Speichern</button></div>
-                    </form>
-                  `
-                  : ''
-              }
-            </div>
+            ${
+              allowDecide
+                ? `<div>
+                    <div class="drawer-label">${esc(t('statusAndReason'))}</div>
+                    <div class="feas-group">
+                      <button type="button" class="st-btn js-pick ${pending?.status === 'Geprüft' ? 'active' : ''}" data-id="${item.id}" data-status="Geprüft">${esc(t('reviewed'))}</button>
+                      <button type="button" class="st-btn js-pick ${pending?.status === 'In Arbeit' ? 'active' : ''}" data-id="${item.id}" data-status="In Arbeit">${esc(t('inProgress'))}</button>
+                      <button type="button" class="st-btn js-pick ${pending?.status === 'Umgesetzt' ? 'active' : ''}" data-id="${item.id}" data-status="Umgesetzt">${esc(t('done'))}</button>
+                      <button type="button" class="st-btn js-pick ${pending?.status === 'Abgelehnt' ? 'active' : ''}" data-id="${item.id}" data-status="Abgelehnt">${esc(t('rejectBtn'))}</button>
+                    </div>
+                    ${
+                      pending
+                        ? `
+                          <form class="decision-form js-decide" data-id="${item.id}" data-status="${esc(pending.status)}" style="margin-top:10px;">
+                            <textarea name="publicResponse" rows="2" required placeholder="${esc(t('reasonPlaceholder'))}"></textarea>
+                            <input type="text" name="internalNote" value="${esc(item.internal_note || '')}" placeholder="${esc(t('internalOpt'))}" />
+                            <div><button type="submit" class="btn-primary">${esc(t('save'))}</button></div>
+                          </form>
+                        `
+                        : ''
+                    }
+                  </div>`
+                : ''
+            }
           </div>
         `
         : '';
@@ -903,7 +1525,7 @@ async function loadIdeas() {
       return `
         <article class="idea-card ${state.freshId === item.id ? 'fresh' : ''}">
           <div class="idea-row">
-            <button type="button" class="vote-box ${voted || effortOpen ? 'voted' : ''} js-vote" data-id="${item.id}" title="Upvote mit Zeitaufwand erfassen (min. 1 Min.)">
+            <button type="button" class="vote-box ${voted || effortOpen ? 'voted' : ''} js-vote" data-id="${item.id}" title="${esc(t('voteTitle'))}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
               <span class="vote-count">${item.votes}×</span>
             </button>
@@ -911,16 +1533,16 @@ async function loadIdeas() {
               <div class="card-head">
                 <h2 class="idea-title">${esc(item.title)}</h2>
                 <div class="head-meta">
-                  ${item.jira_key ? `<a class="tag-mini tag-blue" href="${esc(item.jira_url || '#')}" target="_blank" rel="noopener" style="text-decoration:none;">${esc(item.jira_key)}</a>` : ''}
                   ${pressureBadge}
                   ${ampelDot(feas)}
-                  ${channel ? `<span>${esc(channel)}</span>` : ''}
+                  ${channel ? `<span>${esc(channelDisplay(channel))}</span>` : ''}
                   ${statusBadge(item.status)}
                 </div>
               </div>
               <p class="idea-text">${esc(item.raw_feedback)}</p>
               <div class="idea-meta-line">
                 <span>${esc(dateStr)}${esc(author)}</span>
+                ${valueChips}
                 ${timeChip}
                 ${loopFollowupChip}
               </div>
@@ -946,30 +1568,7 @@ async function loadIdeas() {
       listEl.querySelectorAll('.js-case-badge').forEach((b) => {
         b.classList.toggle('active', Number(b.dataset.mentionId) === mentionId);
       });
-      const dt = fmtDateCH(m.created_at);
-      const tm = m.created_at ? new Date(m.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
-      const dur = Number(m.duration_seconds) || 0;
-      previewBox.innerHTML = `
-        <div class="case-preview-top">
-          <span>${esc(dt)}${tm ? ` · ${esc(tm)}` : ''}</span>
-          <div style="display:flex; gap:6px; align-items:center;">
-            ${dur > 0 ? `<span class="time-chip">${LUCIDE.clock} ${esc(fmtMMSS(dur))}</span>` : ''}
-            ${m.channel ? `<span class="tag-mini">${esc(m.channel)}</span>` : ''}
-            ${m.interaction_ref ? `<span class="tag-mini" style="font-family:ui-monospace,Consolas,monospace;">#${esc(m.interaction_ref)}</span>` : ''}
-          </div>
-        </div>
-        <p class="case-preview-quote ${m.feedback_note ? '' : 'muted'}">
-          ${m.feedback_note ? esc(m.feedback_note) : 'Ohne Zusatztext erfasst'}
-        </p>
-        ${
-          m.customer_ref || m.recorded_by
-            ? `<div class="case-preview-meta">
-                ${m.customer_ref ? `<span>Kunde: <strong>${esc(m.customer_ref)}</strong></span>` : ''}
-                ${m.recorded_by ? `<span>Erfasst von: <strong>${esc(m.recorded_by)}</strong></span>` : ''}
-              </div>`
-            : ''
-        }
-      `;
+      previewBox.innerHTML = renderCasePreviewHtml(m);
     };
     listEl.querySelectorAll('.js-case-badge').forEach((badge) => {
       badge.addEventListener('mouseenter', () => updatePreview(Number(badge.dataset.mentionId)));
@@ -987,7 +1586,7 @@ async function loadIdeas() {
 
     function syncSubmitLabel() {
       const sec = Number(picker?.dataset.sec || 0);
-      submitBtn.textContent = sec >= 60 ? `+1 · ${fmtDurationHuman(sec)}` : '+1 Erfassen';
+      submitBtn.textContent = sec >= 60 ? `+1 · ${fmtDurationHuman(sec)}` : t('addVote');
     }
 
     bindDurationPicker(picker, syncSubmitLabel);
@@ -1038,7 +1637,7 @@ function buildDonutSvg({ einfach = 0, mittel = 0, aufwaendig = 0, unbewertet = 0
       <circle cx="62" cy="62" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
       ${circles}
       <text x="62" y="61" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">${total}</text>
-      <text x="62" y="76" text-anchor="middle" font-size="10" fill="#64748b">Themen</text>
+      <text x="62" y="76" text-anchor="middle" font-size="10" fill="#64748b">${esc(t('repTopics'))}</text>
     </svg>
   `;
 }
@@ -1052,7 +1651,7 @@ function formatBucketLabel(bucket, granularity) {
 
 function buildTimelineSvg(timeline = [], granularity = 'month') {
   if (!timeline.length) {
-    return '<div class="empty-state" style="padding:18px;">Keine Verlaufdaten im gewählten Zeitraum.</div>';
+    return `<div class="empty-state" style="padding:18px;">${esc(t('repNoTimeline'))}</div>`;
   }
   const maxVal = Math.max(...timeline.map((m) => m.total), 1);
   const w = 640;
@@ -1120,10 +1719,10 @@ async function loadReport() {
     document.querySelector('.report-controls')?.classList.add('hidden');
     document.getElementById('report-sheet').innerHTML = `
       <form id="mgr-pin-form" style="max-width:340px; margin:24px auto; display:flex; flex-direction:column; gap:10px; text-align:center;">
-        <div class="drawer-label" style="margin:0;">Manager-Freigabe</div>
+        <div class="drawer-label" style="margin:0;">${esc(t('mgrAccess'))}</div>
         <p style="margin:0; font-size:0.84rem; color:var(--silver-2);">${esc(err.message)}</p>
         <input type="password" name="pin" required autofocus placeholder="Manager-PIN" class="author-input" style="width:100%; text-align:center;" />
-        <button type="submit" class="btn-primary">Freischalten</button>
+        <button type="submit" class="btn-primary">${esc(t('unlock'))}</button>
       </form>
     `;
     document.getElementById('mgr-pin-form')?.addEventListener('submit', (ev) => {
@@ -1136,7 +1735,7 @@ async function loadReport() {
     return;
   }
 
-  const granLabels = { day: 'Tag', week: 'Woche', month: 'Monat', year: 'Jahr' };
+  const granLabels = { day: t('granDay'), week: t('granWeek'), month: t('granMonth'), year: t('granYear') };
   const focusedStory = storyId ? rep.stories.find((s) => s.id === storyId) : null;
 
   const hasAnyEffectiveTime = rep.topResourceDrivers.some((d) => d.effectiveSeconds > 0);
@@ -1147,7 +1746,7 @@ async function loadReport() {
 
   const driversHtml =
     rep.topResourceDrivers.length === 0
-      ? '<div class="empty-state" style="padding:18px;">Keine Einträge im gewählten Filter.</div>'
+      ? `<div class="empty-state" style="padding:18px;">${esc(t('repNoFilterMatch'))}</div>`
       : `<div class="hbar-list">
           ${rep.topResourceDrivers
             .map((d) => {
@@ -1157,9 +1756,9 @@ async function loadReport() {
               const durLabel =
                 d.effectiveSeconds > 0
                   ? fmtDurationHuman(d.effectiveSeconds, { estimated: d.isEstimated })
-                  : 'keine Zeit';
+                  : t('repNoTime');
               return `
-                <div class="hbar-item js-focus-story ${isSelected ? 'is-selected' : ''}" data-id="${d.id}" title="Klicken für Einzelverlauf dieses Themas">
+                <div class="hbar-item js-focus-story ${isSelected ? 'is-selected' : ''}" data-id="${d.id}">
                   <div class="hbar-meta">
                     <span style="font-weight:${isSelected ? '700' : '550'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.title)}</span>
                     <span style="white-space:nowrap; color:var(--silver-2);"><strong>${d.mentions}×</strong> · ${esc(durLabel)}</span>
@@ -1176,14 +1775,14 @@ async function loadReport() {
   const creditsHtml =
     rep.credits.length > 0
       ? `
-        <div class="chart-title" style="margin-top:6px;">Ideengeber &amp; Credits</div>
+        <div class="chart-title" style="margin-top:6px;">${esc(t('repCredits'))}</div>
         <div class="credits-grid">
           ${rep.credits
             .map(
               (c) => `
               <div class="credit-card">
                 <div class="credit-name">${esc(c.name)}</div>
-                <div style="color:var(--silver-2); margin-top:2px;">${c.ideas} Ideen · ${c.implemented} umgesetzt · ${c.mentions}× Meldungen</div>
+                <div style="color:var(--silver-2); margin-top:2px;">${c.ideas} ${esc(c.ideas === 1 ? t('repIdeaOne') : t('repIdeas'))} · ${c.implemented} ${esc(t('implemented').toLowerCase())} · ${c.mentions}×</div>
               </div>
             `
             )
@@ -1194,7 +1793,7 @@ async function loadReport() {
 
   const rowsHtml =
     rep.stories.length === 0
-      ? '<tr><td colspan="7" style="color:var(--silver-3); text-align:center; padding:18px;">Keine Einträge für diesen Zeitraum / Filter.</td></tr>'
+      ? `<tr><td colspan="8" style="color:var(--silver-3); text-align:center; padding:18px;">${esc(t('repEmptyTable'))}</td></tr>`
       : rep.stories
           .map((s) => {
             const effSec = Number(s.report_effective_seconds) || 0;
@@ -1204,18 +1803,23 @@ async function loadReport() {
                 ? fmtDurationHuman(effSec, { estimated: s.report_is_estimated })
                 : '–';
             const avgText = avgSec > 0 ? ` <span style="color:var(--silver-3);">(Ø ${esc(fmtMMSS(avgSec))})</span>` : '';
+            const vals = Array.isArray(s.business_values_json) && s.business_values_json.length > 0
+              ? `<div style="color:var(--silver-3); font-size:0.73rem; margin-top:2px;">${s.business_values_json.map((v) => esc(valueDisplay(v))).join(' · ')}</div>`
+              : '';
             return `
               <tr>
                 <td style="white-space:nowrap;">${esc(fmtDateCH(s.created_at))}</td>
                 <td>
                   <strong>${esc(s.title)}</strong>
+                  ${vals}
                   ${s.internal_note ? `<div style="color:var(--amber); font-size:0.75rem;">Dev: ${esc(s.internal_note)}</div>` : ''}
                 </td>
                 <td>${esc(s.submitted_by || '–')}</td>
-                <td>${esc(s.channel || '–')}</td>
-                <td>${ampelDot(s.feasibility)} ${esc(s.feasibility || 'unbewertet')}</td>
-                <td>${esc(s.status)}</td>
-                <td style="white-space:nowrap;"><strong>${s.report_mentions}×</strong> · ${esc(durText)}${avgText}</td>
+                <td>${esc(s.channel ? channelDisplay(s.channel) : '–')}</td>
+                <td style="white-space:nowrap;">${ampelDot(s.feasibility)} ${esc(feasDisplay(s.feasibility))}</td>
+                <td style="white-space:nowrap;">${esc(statusDisplay(s.status))}</td>
+                <td style="white-space:nowrap; font-variant-numeric:tabular-nums;"><strong>${s.report_mentions}×</strong></td>
+                <td style="white-space:nowrap; font-variant-numeric:tabular-nums;">${esc(durText)}${avgText}</td>
               </tr>
             `;
           })
@@ -1226,7 +1830,7 @@ async function loadReport() {
       ? `
         <div class="savings-box">
           <div class="chart-title" style="color:var(--green); margin-bottom:6px;">
-            Wirkung &amp; Einsparung — ${rep.savings.implementedCount} umgesetzte Themen (${rep.savings.savedMentions}× gelöste Anfragen${rep.savings.savedSeconds > 0 ? ` · ${esc(fmtDurationHuman(rep.savings.savedSeconds, { estimated: rep.summary.hasEstimated }))}` : ''}${rep.savings.savedCostChf ? ` · CHF ${rep.savings.savedCostChf.toLocaleString('de-CH')}.–` : ''})
+            ${esc(t('repSavings'))} — ${rep.savings.implementedCount} ${esc(t('repImplTopics'))} (${rep.savings.savedMentions}× ${esc(t('repSolvedInq'))}${rep.savings.savedSeconds > 0 ? ` · ${esc(fmtDurationHuman(rep.savings.savedSeconds, { estimated: rep.summary.hasEstimated }))}` : ''}${rep.savings.savedCostChf ? ` · CHF ${rep.savings.savedCostChf.toLocaleString('de-CH')}.–` : ''})
           </div>
           ${rep.savings.topSavedItems
             .map(
@@ -1248,14 +1852,14 @@ async function loadReport() {
     rep.pressureItems && rep.pressureItems.length > 0
       ? `
         <div class="pressure-box">
-          <div class="chart-title" style="color:var(--red); margin-bottom:6px;">Wiedervorlage &amp; Handlungsdruck (trotz Ablehnung weiter gefragt / unzufrieden)</div>
+          <div class="chart-title" style="color:var(--red); margin-bottom:6px;">${esc(t('repPressure'))}</div>
           ${rep.pressureItems
             .map(
               (p) => `
               <div class="pressure-item">
-                <span><strong>${esc(p.title)}</strong> (${esc(p.status)})</span>
-                <span style="white-space:nowrap; color:var(--red); font-weight:600;">
-                  ${p.postDecisionMentions > 0 ? `+${p.postDecisionMentions}× danach` : `${p.totalMentions}× total`} · 👍 ${p.decisionUp} / 👎 ${p.decisionDown}
+                <span><strong>${esc(p.title)}</strong> (${esc(statusDisplay(p.status))})</span>
+                <span style="white-space:nowrap; color:var(--red); font-weight:600; display:inline-flex; align-items:center; gap:5px;">
+                  ${p.postDecisionMentions > 0 ? `+${p.postDecisionMentions}× ${esc(t('repAfterwards'))}` : `${p.totalMentions}× total`} · ${LUCIDE.thumbsUp} ${p.decisionUp} / ${LUCIDE.thumbsDown} ${p.decisionDown}
                 </span>
               </div>
             `
@@ -1272,24 +1876,25 @@ async function loadReport() {
   const effortSub =
     timeMode === 'measured'
       ? rep.summary.totalTimedMentions > 0
-        ? `Echt erfasst (${rep.summary.totalTimedMentions} von ${rep.summary.totalMentions})`
-        : 'Noch keine Zeiten erfasst'
-      : `Hochrechnung (~ ≈ ${rep.summary.totalWorkdays} Arbeitstage)`;
+        ? `${t('measured')} (${rep.summary.totalTimedMentions} ${t('repOf')} ${rep.summary.totalMentions})`
+        : t('repNoTimes')
+      : `${t('projected')} (≈ ${rep.summary.totalWorkdays} ${t('repWorkdays')})`;
 
   document.getElementById('report-sheet').innerHTML = `
     <div class="rep-head">
       <div>
         <div class="rep-brand-row">
           <img src="/assets/mark.svg" alt="ONESTRAND" />
+          <img src="/assets/re-mark.svg" alt="RE" style="height:20px; width:20px; border-radius:5px;" />
           <span class="rep-brand-label">ONESTRAND · REQUIREMENTS ENGINE</span>
         </div>
-        <h1>Management-Report</h1>
+        <h1>${esc(t('repTitle'))}</h1>
         <div class="rep-sub">
-          Zeitraum: <strong>${esc(fmtDateCH(from))} – ${esc(fmtDateCH(to))}</strong>
-          · Ampel: ${esc(feasibility)} · Status: ${esc(status)} · Basis: ${timeMode === 'measured' ? 'Echt erfasst' : 'Hochrechnung (~)'}
+          ${esc(t('repPeriod'))}: <strong>${esc(fmtDateCH(from))} – ${esc(fmtDateCH(to))}</strong>
+          · ${esc(t('repFeasLbl'))}: ${esc(feasDisplay(feasibility))} · Status: ${esc(statusDisplay(status))} · ${esc(t('repBasis'))}: ${esc(timeMode === 'measured' ? t('measured') : t('projected'))}
         </div>
       </div>
-      <div class="rep-sub">Erstellt am ${esc(fmtDateCH(rep.generatedAt))}</div>
+      <div class="rep-sub">${esc(t('repGenerated'))} ${esc(fmtDateCH(rep.generatedAt))}</div>
     </div>
 
     ${savingsHtml}
@@ -1297,43 +1902,43 @@ async function loadReport() {
 
     <div class="rep-kpis">
       <div class="rep-kpi">
-        <span class="rep-kpi-label">Themen</span>
+        <span class="rep-kpi-label">${esc(t('repTopics'))}</span>
         <span class="rep-kpi-val">${rep.summary.totalStories}</span>
-        <span class="rep-kpi-sub">${rep.byStatus.erledigt} umgesetzt · ${rep.byStatus.inArbeit} in Arbeit</span>
+        <span class="rep-kpi-sub">${rep.byStatus.erledigt} ${esc(t('implemented').toLowerCase())} · ${rep.byStatus.inArbeit} ${esc(t('inProgress').toLowerCase())}</span>
       </div>
       <div class="rep-kpi">
-        <span class="rep-kpi-label">Anfragen Total</span>
+        <span class="rep-kpi-label">${esc(t('repTotalInq'))}</span>
         <span class="rep-kpi-val">${rep.summary.totalMentions}×</span>
-        <span class="rep-kpi-sub">${rep.summary.totalTimedMentions}× mit Zeitaufwand</span>
+        <span class="rep-kpi-sub">${rep.summary.totalTimedMentions}× ${esc(t('repWithTime'))}</span>
       </div>
       <div class="rep-kpi">
-        <span class="rep-kpi-label">Ressourcen-Aufwand</span>
+        <span class="rep-kpi-label">${esc(t('repEffort'))}</span>
         <span class="rep-kpi-val">${esc(effortVal)}</span>
         <span class="rep-kpi-sub">${esc(effortSub)}</span>
       </div>
       <div class="rep-kpi">
-        <span class="rep-kpi-label">Umsetzungsquote</span>
+        <span class="rep-kpi-label">${esc(t('repRate'))}</span>
         <span class="rep-kpi-val">${rep.summary.implementationRate} %</span>
-        <span class="rep-kpi-sub">${rep.byFeasibility.einfach} Quick Wins (Einfach)</span>
+        <span class="rep-kpi-sub">${rep.byFeasibility.einfach} ${esc(t('repQuickWins'))}</span>
       </div>
     </div>
 
     <div class="rep-charts">
       <div class="chart-card">
-        <h3 class="chart-title">Machbarkeits-Ampel</h3>
+        <h3 class="chart-title">${esc(t('repAmpel'))}</h3>
         <div class="donut-wrap">
           ${buildDonutSvg(rep.byFeasibility)}
           <div class="donut-legend">
-            <div class="donut-legend-row"><span><span class="dot-sm dot-green"></span> Einfach</span><strong>${rep.byFeasibility.einfach}</strong></div>
-            <div class="donut-legend-row"><span><span class="dot-sm dot-amber"></span> Mittel</span><strong>${rep.byFeasibility.mittel}</strong></div>
-            <div class="donut-legend-row"><span><span class="dot-sm dot-red"></span> Aufwändig</span><strong>${rep.byFeasibility.aufwaendig}</strong></div>
-            ${rep.byFeasibility.unbewertet > 0 ? `<div class="donut-legend-row"><span><span class="dot-sm dot-open"></span> Unbewertet</span><strong>${rep.byFeasibility.unbewertet}</strong></div>` : ''}
+            <div class="donut-legend-row"><span><span class="dot-sm dot-green"></span> ${esc(t('easy'))}</span><strong>${rep.byFeasibility.einfach}</strong></div>
+            <div class="donut-legend-row"><span><span class="dot-sm dot-amber"></span> ${esc(t('medium'))}</span><strong>${rep.byFeasibility.mittel}</strong></div>
+            <div class="donut-legend-row"><span><span class="dot-sm dot-red"></span> ${esc(t('complex'))}</span><strong>${rep.byFeasibility.aufwaendig}</strong></div>
+            ${rep.byFeasibility.unbewertet > 0 ? `<div class="donut-legend-row"><span><span class="dot-sm dot-open"></span> ${esc(t('unrated'))}</span><strong>${rep.byFeasibility.unbewertet}</strong></div>` : ''}
           </div>
         </div>
       </div>
 
       <div class="chart-card">
-        <h3 class="chart-title">Top Ressourcen-Treiber (Meldungen &amp; Dauer)</h3>
+        <h3 class="chart-title">${esc(t('repDrivers'))}</h3>
         ${driversHtml}
       </div>
     </div>
@@ -1341,11 +1946,11 @@ async function loadReport() {
     <div class="chart-card" style="margin-bottom:22px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
         <h3 class="chart-title" style="margin:0;">
-          Verlauf pro ${esc(granLabels[granularity])}${focusedStory ? ` — ${esc(focusedStory.title)}` : ' (alle Themen)'}
+          ${esc(t('repTrendPer'))} ${esc(granLabels[granularity])}${focusedStory ? ` — ${esc(focusedStory.title)}` : ` ${esc(t('repAllTopics'))}`}
         </h3>
         <div style="display:flex; gap:10px; align-items:center; font-size:0.77rem; color:var(--silver-2);">
-          ${rep.peakBucket ? `<span>Spitze: <strong style="color:var(--ink);">${esc(formatBucketLabel(rep.peakBucket.bucket, granularity))} (${rep.peakBucket.total}×)</strong></span>` : ''}
-          ${focusedStory ? '<button type="button" class="text-link no-print" id="btn-reset-focus">Alle Themen</button>' : ''}
+          ${rep.peakBucket ? `<span>${esc(t('repPeak'))}: <strong style="color:var(--ink);">${esc(formatBucketLabel(rep.peakBucket.bucket, granularity))} (${rep.peakBucket.total}×)</strong></span>` : ''}
+          ${focusedStory ? `<button type="button" class="text-link no-print" id="btn-reset-focus">${esc(t('repShowAllTopics'))}</button>` : ''}
         </div>
       </div>
       ${buildTimelineSvg(rep.mentionsTimeline || [], granularity)}
@@ -1353,17 +1958,18 @@ async function loadReport() {
 
     ${creditsHtml}
 
-    <div class="chart-title">Einzelübersicht (${rep.stories.length})</div>
+    <div class="chart-title">${esc(t('repOverview'))} (${rep.stories.length})</div>
     <table class="rep-table">
       <thead>
         <tr>
-          <th>Datum</th>
-          <th>Thema</th>
-          <th>Idee von</th>
-          <th>Kanal</th>
-          <th>Ampel</th>
-          <th>Status</th>
-          <th>Menge / Dauer</th>
+          <th>${esc(t('thDate'))}</th>
+          <th>${esc(t('thTopic'))}</th>
+          <th>${esc(t('thAuthor'))}</th>
+          <th>${esc(t('thChannel'))}</th>
+          <th>${esc(t('thAmpel'))}</th>
+          <th>${esc(t('thStatus'))}</th>
+          <th>${esc(t('thVolume'))}</th>
+          <th>${esc(t('thDuration'))}</th>
         </tr>
       </thead>
       <tbody>${rowsHtml}</tbody>
@@ -1373,6 +1979,7 @@ async function loadReport() {
 
 async function handleSubmit(ev) {
   ev.preventDefault();
+  const titleInput = document.getElementById('fb-title');
   const textarea = document.getElementById('fb-text');
   const authorInput = document.getElementById('fb-author');
   const refInput = document.getElementById('fb-ref');
@@ -1384,7 +1991,9 @@ async function handleSubmit(ev) {
     const res = await api('/api/stories', {
       method: 'POST',
       body: JSON.stringify({
+        title: titleInput ? titleInput.value.trim() : '',
         rawFeedback: textarea.value.trim(),
+        businessValues: [...state.businessValues],
         channel: state.channel,
         submittedBy: author,
         interactionRef,
@@ -1393,10 +2002,13 @@ async function handleSubmit(ev) {
       })
     });
 
+    if (titleInput) titleInput.value = '';
     textarea.value = '';
     refInput.value = '';
     state.channel = '';
+    state.businessValues.clear();
     document.querySelectorAll('.ch-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.val-badge').forEach((b) => b.classList.remove('active'));
     state.composerDurationSec = 0;
     const compPicker = document.getElementById('composer-dur-picker');
     if (compPicker?._setSeconds) compPicker._setSeconds(0, { syncText: true, syncWheel: false });
@@ -1407,13 +2019,13 @@ async function handleSubmit(ev) {
 
     if (res.duplicates && res.duplicates.length > 0) {
       const top = res.duplicates[0];
-      dupBanner.textContent = `Ähnlich zu «${top.title}» (${top.similarityPercent} %).`;
+      dupBanner.textContent = `${t('toastSimilarTo')} «${top.title}» (${top.similarityPercent} %).`;
       dupBanner.classList.remove('hidden');
     } else {
       dupBanner.classList.add('hidden');
     }
 
-    showToast(res.story.total_duration_seconds > 0 ? `Erfasst (${fmtDurationHuman(res.story.total_duration_seconds)}).` : 'Erfasst.');
+    showToast(res.story.total_duration_seconds > 0 ? `${t('toastCaptured')} (${fmtDurationHuman(res.story.total_duration_seconds)})` : t('toastCaptured'));
     await Promise.all([loadIdeas(), loadHealth()]);
   } catch (err) {
     showToast(err.message);
@@ -1463,6 +2075,18 @@ function init() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
+  // Sprach-Umschalter DE / EN (permanent in localStorage gespeichert!)
+  document.querySelectorAll('.lang-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.lang = btn.dataset.lang === 'en' ? 'en' : 'de';
+      localStorage.setItem('re_lang', state.lang);
+      applyLanguageToStaticUi();
+      renderAuthState();
+      loadIdeas();
+      if (state.view === 'report') loadReport();
+    });
+  });
+
   // Profil-Button, Account-Popover & Login-Maske
   document.getElementById('btn-profile').addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -1491,7 +2115,7 @@ function init() {
       state.expandedMentions = [];
       document.getElementById('profile-popover').classList.add('hidden');
       renderAuthState();
-      showToast('Abgemeldet.');
+      showToast(t('toastSignedOut'));
       await loadIdeas();
     }
   });
@@ -1502,6 +2126,11 @@ function init() {
       closeRolesModal();
       return;
     }
+    const rTab = ev.target.closest('.js-roles-tab');
+    if (rTab) {
+      await openRolesModal(rTab.dataset.rtab);
+      return;
+    }
     const roleBtn = ev.target.closest('.js-set-role');
     if (roleBtn) {
       try {
@@ -1509,8 +2138,8 @@ function init() {
           method: 'PATCH',
           body: JSON.stringify({ role: roleBtn.dataset.role })
         });
-        showToast(`Rolle auf ${ROLE_NAMES[roleBtn.dataset.role] || roleBtn.dataset.role} gesetzt.`);
-        await openRolesModal();
+        showToast(`${roleLabelFor(roleBtn.dataset.role)} ✓`);
+        await openRolesModal('matrix');
       } catch (err) {
         showToast(err.message);
       }
@@ -1686,13 +2315,22 @@ function init() {
         });
         state.commentsVisibility = res.commentsVisibility;
         document.querySelectorAll('[data-vis]').forEach((b) => b.classList.toggle('active', b.dataset.vis === state.commentsVisibility));
-        showToast(
-          state.commentsVisibility === 'own_only'
-            ? 'Aktiv: User sehen nur eigene Kommentare (Chef sieht alle).'
-            : 'Aktiv: Alle sehen alle Kommentare.'
-        );
+        showToast(state.commentsVisibility === 'own_only' ? t('toastVisOwn') : t('toastVisAll'));
       } catch (err) {
         showToast(err.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.val-badge[data-value]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.value;
+      if (state.businessValues.has(val)) {
+        state.businessValues.delete(val);
+        btn.classList.remove('active');
+      } else {
+        state.businessValues.add(val);
+        btn.classList.add('active');
       }
     });
   });
@@ -1744,41 +2382,58 @@ function init() {
       return;
     }
 
-    if (ev.target.closest('.dur-picker') || ev.target.closest('.js-quant-form') || ev.target.closest('.case-preview')) return;
+    if (
+      ev.target.closest('.dur-picker') ||
+      ev.target.closest('.js-quant-form') ||
+      ev.target.closest('.js-dec-comment-form') ||
+      ev.target.closest('.case-preview')
+    ) {
+      return;
+    }
 
     const copyBtn = ev.target.closest('.js-copy');
     if (copyBtn) {
       ev.stopPropagation();
       try {
         await navigator.clipboard.writeText(copyBtn.dataset.text || '');
-        showToast('Kopiert.');
+        showToast(t('toastCopied'));
       } catch {
-        showToast('Kopieren fehlgeschlagen.');
+        showToast(t('toastCopyFail'));
       }
       return;
     }
 
-    const jiraBtn = ev.target.closest('.js-jira');
-    if (jiraBtn) {
+    const mergeOpen = ev.target.closest('.js-merge-open');
+    if (mergeOpen) {
       ev.stopPropagation();
-      const id = Number(jiraBtn.dataset.id);
+      const id = Number(mergeOpen.dataset.id);
+      state.mergeSourceId = state.mergeSourceId === id ? null : id;
+      await loadIdeas();
+      return;
+    }
+
+    const mergeCancel = ev.target.closest('.js-merge-cancel');
+    if (mergeCancel) {
+      ev.stopPropagation();
+      state.mergeSourceId = null;
+      await loadIdeas();
+      return;
+    }
+
+    const mergeTarget = ev.target.closest('.js-merge-target');
+    if (mergeTarget) {
+      ev.stopPropagation();
       try {
-        const res = await api(`/api/stories/${id}/jira`, {
+        await api(`/api/stories/${mergeTarget.dataset.source}/merge`, {
           method: 'POST',
-          body: JSON.stringify({})
+          body: JSON.stringify({ targetId: Number(mergeTarget.dataset.target) })
         });
-        const kind = res.issueType || 'Story';
-        if (res.mode === 'api') {
-          showToast(`Jira ${kind} erstellt: ${res.jiraKey}`);
-          await loadIdeas();
-        } else {
-          try {
-            await navigator.clipboard.writeText(res.markup || '');
-            showToast(`Jira-${kind} kopiert.`);
-          } catch {
-            showToast(`Jira-${kind} bereit.`);
-          }
-        }
+        state.mergeSourceId = null;
+        state.expandedId = Number(mergeTarget.dataset.target);
+        state.expandedMentions = await api(`/api/stories/${state.expandedId}/mentions`).catch(() => []);
+        state.activeMentionId = state.expandedMentions[0]?.id ?? null;
+        showToast(t('toastMerged'));
+        await Promise.all([loadIdeas(), loadHealth()]);
       } catch (err) {
         showToast(err.message);
       }
@@ -1788,10 +2443,14 @@ function init() {
     const delBtn = ev.target.closest('.js-delete');
     if (delBtn) {
       ev.stopPropagation();
-      await api(`/api/stories/${delBtn.dataset.id}`, { method: 'DELETE' });
-      state.expandedId = null;
-      showToast('Gelöscht.');
-      await Promise.all([loadIdeas(), loadHealth()]);
+      try {
+        await api(`/api/stories/${delBtn.dataset.id}`, { method: 'DELETE' });
+        state.expandedId = null;
+        showToast(t('toastDeleted'));
+        await Promise.all([loadIdeas(), loadHealth()]);
+      } catch (err) {
+        showToast(err.message);
+      }
       return;
     }
 
@@ -1804,10 +2463,10 @@ function init() {
         method: 'POST',
         body: JSON.stringify({
           sentiment,
-          author: localStorage.getItem('re_author') || ''
+          author: state.user?.displayName || ''
         })
       });
-      showToast(sentiment === 'down' ? 'Unzufriedenheit gezählt.' : 'Zustimmung gezählt.');
+      showToast(sentiment === 'down' ? t('toastVoteDown') : t('toastVoteUp'));
       await loadIdeas();
       return;
     }
@@ -1818,6 +2477,9 @@ function init() {
       const id = Number(decCommentOpen.dataset.id);
       state.pendingDecFeedback = state.pendingDecFeedback?.id === id ? null : { id, sentiment: 'down' };
       await loadIdeas();
+      if (state.pendingDecFeedback?.id === id) {
+        document.querySelector(`.js-dec-comment-form[data-id="${id}"] input[name="comment"]`)?.focus();
+      }
       return;
     }
 
@@ -1854,7 +2516,7 @@ function init() {
     }
 
     const body = ev.target.closest('.js-toggle');
-    if (body) {
+    if (body && !ev.target.closest('form, input, textarea, button, a')) {
       const id = Number(body.dataset.id);
       if (state.expandedId === id) {
         state.expandedId = null;
@@ -1886,7 +2548,7 @@ function init() {
       const durationSeconds = durInput && durInput.value.trim() ? parseMMSS(durInput.value) : Number(picker?.dataset.sec || 0);
 
       if (durationSeconds < 60) {
-        showToast('Mindestens 1 Minute Zeitaufwand (z. B. 01:00) erfassen.');
+        showToast(t('toastMinTime'));
         durInput?.focus();
         return;
       }
@@ -1911,7 +2573,7 @@ function init() {
         if (state.expandedId === id) {
           state.expandedMentions = await api(`/api/stories/${id}/mentions`).catch(() => []);
         }
-        showToast(`+1 (${fmtDurationHuman(durationSeconds)}) erfasst.`);
+        showToast(`+1 (${fmtDurationHuman(durationSeconds)})`);
         await Promise.all([loadIdeas(), loadHealth()]);
       } catch (err) {
         showToast(err.message);
@@ -1928,11 +2590,11 @@ function init() {
         body: JSON.stringify({
           sentiment: 'down',
           comment,
-          author: localStorage.getItem('re_author') || ''
+          author: state.user?.displayName || ''
         })
       });
       state.pendingDecFeedback = null;
-      showToast('Rückmeldung zum Entscheid gespeichert.');
+      showToast(t('toastDecFbSaved'));
       await loadIdeas();
       return;
     }
@@ -1945,7 +2607,7 @@ function init() {
         method: 'PATCH',
         body: JSON.stringify({ internalNote: fd.get('internalNote') })
       });
-      showToast('Notiz gespeichert.');
+      showToast(t('toastNoteSaved'));
       await loadIdeas();
       return;
     }
@@ -1964,13 +2626,14 @@ function init() {
         })
       });
       state.pendingStatus = null;
-      showToast('Gespeichert.');
+      showToast(t('toastSaved'));
       await Promise.all([loadIdeas(), loadHealth()]);
     } catch (err) {
       showToast(err.message);
     }
   });
 
+  applyLanguageToStaticUi();
   loadHealth();
   loadAuthAndSettings();
   loadIdeas();
