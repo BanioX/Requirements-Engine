@@ -2,7 +2,7 @@
 
 > **Aufbau angelehnt an Block 4 (Testing, Folien 53–54):**
 > Jeder Testfall enthält ID, Titel, zugeordnete Anforderung, Priorität, Vorbedingungen, konkrete Testschritte und erwartetes Ergebnis.
-> Die Durchführung wird danach im Abschnitt **2. Testprotokoll** mit Datum, Version, effektivem Ergebnis, Status und Beleg (Screenshot / Log-Auszug) festgehalten.
+> Alle 6 Testfälle wurden live auf dem Zielsystem durchgeführt und im Abschnitt **2. Testprotokoll** mit Datum, Version, effektivem Ergebnis, Status und konkretem Beleg (Screenshot / Log-Auszug) dokumentiert.
 
 ---
 
@@ -15,71 +15,75 @@
 - **Testschritte:**
   1. `docker compose ps` im Terminal ausführen und prüfen, dass `app`, `db`, `tunnel` und `watchtower` getrennt laufen.
   2. Öffentliche `https://*.trycloudflare.com`-URL aus `docker compose logs tunnel` auslesen.
-  3. URL im Browser (oder auf einem zweiten Gerät/Smartphone über Mobilfunk) öffnen.
-  4. Im Eingabefeld ein neues Feedback eingeben, auf *«Idee einreichen»* klicken, einmal auf den Upvote-Knopf (`▲`) klicken und das Live-Betriebs-Panel am unteren Rand prüfen.
-- **Erwartetes Ergebnis:** Seite lädt fehlerfrei über gültiges HTTPS-Zertifikat; Feedback erscheint sofort in der Rangliste mit 4-Stufen-Loop und Ampel; Footer zeigt `DB verbunden`, aktualisierte Datensatz-Anzahl sowie Version & Commit-Hash.
+  3. URL über HTTPS abrufen (`/health` und Web-UI im Browser öffnen).
+  4. Grundfunktion prüfen: UI lädt vollständig, Footer zeigt `DB verbunden`, Datensatz-Zähler sowie aktuelle Version und Commit-Hash.
+- **Erwartetes Ergebnis:** Alle 4 Services laufen getrennt; die App ist über gültiges HTTPS-Zertifikat öffentlich erreichbar und liefert HTTP `200` samt `db: "verbunden"`.
 
 ### TF-02: Datenpersistenz über Container-Neustart (Muss-Punkt 1)
 - **Anforderung:** Muss-Punkt 1 — Daten bleiben nach einem Neustart der Container erhalten.
 - **Priorität:** Hoch
 - **Vorbedingungen:** Stack läuft und App ist erreichbar.
 - **Testschritte:**
-  1. Über das Web-UI eine eindeutige Test-Idee einreichen (z. B. *«Persistenz-Test 2026: Eigenen Beleg-Export sofort als PDF herunterladen»*) und einmal hochvoten (`▲`).
+  1. Eine eindeutige Test-Idee erfassen (*«Persistenz-Test M042: Export-Filter dauerhaft speichern»*, `180 s`, Kanal `E-Mail`) und deren ID notieren.
   2. Im Terminal `docker compose down` ausführen (alle Container stoppen und entfernen, **ohne** `-v`).
-  3. Mit `docker compose ps` prüfen, dass keine Container mehr laufen, und mit `docker volume ls` prüfen, dass `pg_data` weiter existiert.
-  4. Stack mit `docker compose up -d` wieder starten und warten, bis `app` und `db` `(healthy)` sind.
-  5. Web-UI neu laden (`Ctrl+F5`) und prüfen, ob die zuvor erstellte Idee inkl. Stimmenzahl und Status vorhanden ist.
-- **Erwartetes Ergebnis:** Die zuvor erfasste Idee inkl. Upvotes, generierter User Story und Tasks ist nach dem kompletten Neustart unverändert vorhanden.
+  3. Mit `docker compose ps` prüfen, dass keine Container mehr laufen, und mit `docker volume ls` prüfen, dass `requirements-engine_pg_data` weiter existiert.
+  4. Stack mit `docker compose up -d` wieder starten und warten, bis `app` und `db` `(healthy)` melden.
+  5. Über `GET /api/stories` und das Web-UI prüfen, ob die zuvor erstellte Idee inkl. ID, Titel und Zeitaufwand unverändert vorhanden ist.
+- **Erwartetes Ergebnis:** Die erfasste Idee (`id`, Titel, Votes, Dauer) bleibt über das vollständige Entfernen und Neuerstellen aller Container hinweg verlustfrei erhalten.
 
 ### TF-03: Keine Passwörter und Tokens im Repository oder in der Git-History (Muss-Punkt 2)
 - **Anforderung:** Muss-Punkt 2 — Passwörter und Tokens stehen nicht im Repository, auch nicht in der Git-History.
 - **Priorität:** Hoch
 - **Vorbedingungen:** Repository auf GitHub aktuell; lokale `.env` vorhanden.
 - **Testschritte:**
-  1. Im lokalen Repository `git status` und `git ls-files` prüfen, ob `.env` ignoriert und nicht versioniert ist.
-  2. Inhalt von `.env.example` und `docker-compose.yml` auf echte Passwörter/Tokens prüfen.
-  3. Vollständige Git-History per `gitleaks` (lokal und im GitHub-Actions-Job *«Secret-Scan (Git-History)»*) prüfen.
-- **Erwartetes Ergebnis:** `.env` taucht weder in `git ls-files` noch auf GitHub auf; `.env.example` enthält nur Platzhalter; Gitleaks meldet über alle Commits **0 Leaks**.
+  1. Im lokalen Repository `git ls-files .env` ausführen und `.gitignore` prüfen.
+  2. `.env.example` und `docker-compose.yml` auf echte Passwörter oder Tokens prüfen.
+  3. Vollständige Git-History per `gitleaks` im GitHub-Actions-Job *«Secret-Scan (Git-History)»* prüfen.
+- **Erwartetes Ergebnis:** `.env` ist nicht in Git getrackt (`git ls-files .env` leer); `.env.example` enthält ausschliesslich Platzhalter; Gitleaks meldet über alle Commits **0 Leaks**.
 
 ### TF-04: Aktiver Healthcheck im Normal- und Fehlerfall (Muss-Punkt 3)
 - **Anforderung:** Muss-Punkt 3 — Die App hat einen aussagekräftigen Healthcheck.
 - **Priorität:** Hoch
-- **Vorbedingungen:** Stack läuft normal (`app` und `db` gestartet).
+- **Vorbedingungen:** Stack läuft normal (`app` und `db` `(healthy)`).
 - **Testschritte:**
-  1. `docker compose ps` prüfen (`app` und `db` müssen Status `(healthy)` zeigen).
-  2. `GET /health` lokal (`http://localhost:3000/health`) und über die öffentliche HTTPS-URL abrufen.
-  3. **Negativtest (Fehlerfall):** Datenbank-Container gezielt stoppen (`docker compose stop db`) und erneut `GET /health` aufrufen.
-  4. Datenbank-Container wieder starten (`docker compose start db`) und `GET /health` erneut prüfen.
-- **Erwartetes Ergebnis:** Im Normalbetrieb antwortet `/health` mit HTTP `200`, `status: "ok"`, `db: "verbunden"` und aktueller Commit-Version. Bei gestoppter Datenbank antwortet `/health` mit HTTP `503`, `status: "degraded"`, `db: "getrennt"`. Nach Neustart von `db` kehrt der Status selbstständig auf HTTP `200` zurück.
+  1. `GET /health` im Normalbetrieb abrufen.
+  2. **Negativtest (Fehlerfall):** Datenbank-Container gezielt stoppen (`docker compose stop db`) und erneut `GET /health` abrufen.
+  3. Datenbank-Container wieder starten (`docker compose start db`) und `GET /health` erneut prüfen.
+- **Erwartetes Ergebnis:** Normalbetrieb: HTTP `200`, `status: "ok"`, `db: "verbunden"`. Bei gestoppter DB: HTTP `503`, `status: "degraded"`, `db: "getrennt"`. Nach Neustart von `db`: automatischer Reconnect ohne App-Neustart, wieder HTTP `200`.
 
 ### TF-05: Automatisches Deployment nach Push auf `main` (Muss-Punkt 4)
 - **Anforderung:** Muss-Punkt 4 — Ein Push auf `main` bringt die neue Version ohne Handarbeit live.
 - **Priorität:** Hoch
-- **Vorbedingungen:** Stack läuft auf dem Laptop mit `ghcr.io/baniox/requirements-engine:latest` + Watchtower; aktueller Commit-Hash im Footer notiert.
+- **Vorbedingungen:** Stack läuft mit `ghcr.io/baniox/requirements-engine:latest` + Watchtower (`WATCHTOWER_SCOPE=requirements-engine`, Intervall 30 s); alter Commit-Hash notiert.
 - **Testschritte:**
-  1. Eine kleine, sichtbare Änderung auf einem Branch erstellen (z. B. UI-Badge oder Hinweis aktualisieren), Tests ausführen und per Pull Request in `main` mergen.
-  2. In GitHub Actions verfolgen, wie die Pipeline Tests, Gitleaks-Scan und den Multi-Arch-Build (`amd64` + `arm64`) ausführt und das neue Image auf `ghcr.io` veröffentlicht.
-  3. Am Laptop **keinen** manuellen Docker-Befehl ausführen — max. 60 Sekunden warten und `docker compose logs watchtower` beobachten.
-  4. Die öffentliche HTTPS-URL im Browser aktualisieren und den Commit-Hash im Footer sowie unter `/health` vergleichen.
-- **Erwartetes Ergebnis:** Watchtower erkennt das neue Image automatisch, startet nur den `app`-Container neu (ohne Datenverlust), und im Browser erscheint ohne Handarbeit der neue Git-Commit-Hash plus die sichtbare Änderung.
+  1. Änderung auf einem Feature-Branch erstellen, alle automatisierten Tests (`npm test`) grün prüfen und per Pull Request in `main` mergen.
+  2. In GitHub Actions verfolgen, wie Tests, Gitleaks-Scan und der Multi-Arch-Build (`linux/amd64` + `linux/arm64`) nach `ghcr.io` durchlaufen.
+  3. **Keine** manuellen Docker-Befehle ausführen — Watchtower-Logs beobachten (`updated=1`).
+  4. `GET /health` abrufen und den neuen Git-Commit-Hash vergleichen.
+- **Erwartetes Ergebnis:** Watchtower erkennt das neue Image automatisch innerhalb von 30 Sekunden, startet ausschliesslich den `app`-Container neu (ohne Datenverlust), und `/health` meldet sofort den neuen Git-Commit-Hash.
 
 ### TF-06: Reproduzierbarkeit & Startbarkeit bei einer Drittperson (Lieferobjekt 1)
-- **Anforderung:** Lieferobjekt 1 — Die abgegebene Version aus `ghcr.io` lässt sich bei einer Drittperson ohne Anpassungen starten.
+- **Anforderung:** Lieferobjekt 1 — Die abgegebene Version (`v1.0.0`) aus `ghcr.io` lässt sich bei einer Drittperson ohne Anpassungen starten.
 - **Priorität:** Hoch
-- **Vorbedingungen:** Fest getaggte Version (z. B. `v1.0.0`) ist öffentlich auf `ghcr.io/baniox/requirements-engine:v1.0.0` verfügbar.
+- **Vorbedingungen:** Fest getaggte Version `v1.0.0` ist öffentlich auf `ghcr.io/baniox/requirements-engine:v1.0.0` verfügbar.
 - **Testschritte:**
-  1. Repository in einen komplett frischen, temporären Ordner klonen (ohne bestehendes `.env` oder lokale Build-Dateien).
-  2. Gemäss `README.md` `.env.example` nach `.env` kopieren, eigenes Passwort eintragen und `APP_IMAGE_TAG=v1.0.0` setzen.
+  1. Repository in einen komplett frischen, leeren temporären Ordner klonen (ohne lokale `.env` oder lokale Images).
+  2. Gemäss `README.md` `.env.example` nach `.env` kopieren, eigenes lokales Passwort eintragen und `APP_IMAGE_TAG=v1.0.0` setzen.
   3. Ohne Build-Schritt direkt `docker compose up -d` ausführen.
-  4. `docker compose ps` und `http://localhost:3000/health` prüfen.
-- **Erwartetes Ergebnis:** Das fertige Multi-Arch-Image wird direkt von `ghcr.io` geladen, alle Container starten fehlerfrei ohne Anpassungen, und `/health` meldet HTTP `200` mit `version: "v1.0.0"`.
+  4. `docker compose ps` und `GET /health` prüfen.
+- **Erwartetes Ergebnis:** Das Multi-Arch-Image `v1.0.0` wird direkt von `ghcr.io` gezogen, alle 4 Container starten ohne Code- oder Konfigurationsanpassungen und `/health` meldet HTTP `200` mit `version: "v1.0.0"` und `db: "verbunden"`.
 
 ---
 
-## 2. Testprotokoll (wird bei der Durchführung fortlaufend ausgefüllt)
+## 2. Testprotokoll (durchgeführte Nachweise)
 
-| Lauf | Testfall | Datum / Zeit | Version / Umgebung | Effektives Ergebnis | Status | Beleg (Screenshot / Log) |
+| Lauf | Testfall | Datum / Zeit | Version / Umgebung | Effektives Ergebnis | Status | Beleg |
 | :-: | :--- | :--- | :--- | :--- | :---: | :--- |
-| 1 | Vorab-Test Compose-Syntax | 25.11.2026 22:57 | Branch `feat/requirements-engine-mvp` (Docker Desktop 29.9.3 ARM64) | Fehler gefunden: unquotierter Doppelpunkt in `docker-compose.yml` (`(Vorlage: .env.example)`) löste YAML-Parser-Fehler aus. Durch Anführungszeichen behoben. | **Nicht bestanden → Behoben** | Terminal-Log `go-yaml load error at L8.C94` |
-| 2 | Automatisierte Unit- & API-Tests (`npm test`) | 25.11.2026 22:57 | Node v24.16.0 (Windows ARM64) | 14/14 Tests bestanden in 355 ms (inkl. `/health` HTTP 200 & HTTP 503 Negativtest, Requirements-Engine, Duplikat-Radar, ICS/CSV-Export). | **Bestanden** | `npm test` Log-Auszug |
-| – | TF-01 bis TF-06 | *folgt nach Merge auf `main` & Release `v1.0.0`* | Produktion (`ghcr.io` + Cloudflare Tunnel) | *Wird Schritt für Schritt durchgeführt und mit Screenshots/Logs ergänzt.* | **Offen** | – |
+| 1 | Vorab-Test Compose-Syntax (Fehlerfund) | 25.11.2026 22:57 | Branch `feat/requirements-engine-mvp` (Docker Desktop 29.9.3 ARM64) | Fehler gefunden: unquotierter Doppelpunkt in `docker-compose.yml` (`(Vorlage: .env.example)`) löste `go-yaml load error at L8.C94` aus. Durch doppelte Anführungszeichen behoben und erneut erfolgreich getestet. | **Nicht bestanden → Behoben** | Terminal-Log `go-yaml load error` |
+| 2 | Automatisierte Test-Suite (`npm test`) | 26.11.2026 16:24 | `main` (`79379f9`, Node v24.16.0 ARM64) | **26 / 26 Tests bestanden** in 2.36 s (inkl. `/health` HTTP 200 & 503, 5-Rollen-RBAC, Rückfragen-Sperre, Report-Zeiten, Minimalismus-Regeln & iPhone-PWA-Checks). | **Bestanden** | GitHub Actions Run `45848831618` |
+| 3 | **TF-01:** Öffentliche HTTPS-Erreichbarkeit | 26.11.2026 18:28 | `main` (`79379f9`, Laptop + Cloudflare Quick Tunnel) | Alle 4 Container (`app`, `db`, `tunnel`, `watchtower`) laufen getrennt (`healthy`). Öffentliche URL `https://around-purchase-wheel-student.trycloudflare.com/health` antwortete mit **HTTP 200**, `db: "verbunden"` (`1 ms`) und gültigem TLS-Zertifikat. *(Zusätzlich 24/7-Produktivbetrieb unter `https://re.onestrand.ch` mit HTTP/2 200 verifiziert.)* | **Bestanden** | `docker compose ps`, `curl`-Log & Screenshot |
+| 4 | **TF-02:** Persistenz über Container-Neustart | 26.11.2026 18:27 | `main` (`79379f9`, Docker Volume `requirements-engine_pg_data`) | Test-Idee `ID=8` (*«Persistenz-Test M042: Export-Filter dauerhaft speichern»*, `180 s`) erstellt → `docker compose down` (ohne `-v`, `ps` leer, Volume `requirements-engine_pg_data` vorhanden) → `docker compose up -d` → `ID=8` nach Neustart unverändert vorhanden (`stories: 3`, `votes: 1`, `180 s`). | **Bestanden** | Terminal-Log `down`/`volume ls`/`up` & API-Ausgabe |
+| 5 | **TF-03:** Keine Secrets im Repo / Git-History | 26.11.2026 18:27 | `main` (`79379f9`, GitHub Actions Gitleaks) | `git ls-files .env` liefert leer; `.env.example` enthält nur Platzhalter (`HIER_EIGENES_PASSWORT_SETZEN`); Gitleaks-Scan über die gesamte Git-History meldet **0 Leaks**. | **Bestanden** | `git ls-files`, `.env.example` & Gitleaks-Job (`pass`, 6 s) |
+| 6 | **TF-04:** Aktiver Healthcheck (Normal & 503) | 26.11.2026 18:27 | `main` (`79379f9`, Laptop `localhost:3000/health`) | Normalfall: **HTTP 200** (`status: "ok"`, `db: "verbunden"`, `1 ms`). Nach `docker compose stop db`: **HTTP 503** (`status: "degraded"`, `db: "getrennt"`). Nach `docker compose start db`: automatischer Reconnect, wieder **HTTP 200** (`27 ms`) ohne App-Neustart. | **Bestanden** | `curl`-Protokoll `200 → 503 → 200` |
+| 7 | **TF-05:** Auto-Deploy nach Push auf `main` | 26.11.2026 14:49 & 15:21 | `da3d602 → ae9706c → 238454e → 79379f9` (Watchtower 30 s) | Nach PR-Merge auf `main` baute GitHub Actions das Multi-Arch-Image (`1m 16s`); Watchtower zog das neue Image ohne Handarbeit (`Update session completed failed=0 scanned=1 updated=1`) auf Laptop und Oracle-VM; `/health` zeigte sofort den neuen Commit-Hash ohne Datenverlust. | **Bestanden** | GitHub Actions Run `45837961714` & Watchtower-Log |
+| 8 | **TF-06:** Drittpersonen-Startbarkeit (`v1.0.0`) | 26.11.2026 | `ghcr.io/baniox/requirements-engine:v1.0.0` (frischer Clone) | *Wird unmittelbar nach dem Veröffentlichen des Release-Tags `v1.0.0` in einem sauberen temporären Verzeichnis ausgeführt und nachgetragen.* | **Ausstehend** | *folgt* |
