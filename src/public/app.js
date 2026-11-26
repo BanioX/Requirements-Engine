@@ -778,35 +778,6 @@ async function loadIdeas() {
               </div>
             </form>
 
-            <div class="story-box">
-              <div class="spec-meta">
-                <span class="tag-mini tag-blue">${esc(item.req_type || 'FA: Funktionale Anforderung')}</span>
-                <span class="tag-mini">MoSCoW: ${esc(item.moscow || 'Could')}</span>
-              </div>
-              <div class="drawer-label">User Story</div>
-              <p class="story-line">${esc(item.user_story)}</p>
-              ${
-                criteria.length > 0
-                  ? `
-                    <div class="drawer-label" style="margin-top:10px;">Akzeptanzkriterien (Gegeben / Wenn / Dann)</div>
-                    <ol class="ac-list">
-                      ${criteria.map((c) => `<li>${esc(c)}</li>`).join('')}
-                    </ol>
-                  `
-                  : ''
-              }
-              ${
-                tasks.length > 0
-                  ? `
-                    <div class="drawer-label" style="margin-top:10px;">Teilanforderungen</div>
-                    <ol class="ac-list">
-                      ${tasks.map((t) => `<li>${esc(t.title)}</li>`).join('')}
-                    </ol>
-                  `
-                  : ''
-              }
-            </div>
-
             <div>
               <div class="drawer-label">Status &amp; Begründung</div>
               <div class="feas-group">
