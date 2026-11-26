@@ -79,7 +79,8 @@ const I18N = {
     fallbackEmpty: 'Fallback falls leer:',
     measured: 'Echt erfasst',
     projected: 'Hochrechnung (~)',
-    commentsLbl: 'Kommentare:',
+    commentsLbl: 'Kommentar-Sichtbarkeit',
+    commentsDesc: 'Steuert, ob normale Nutzer fremde Einzelfälle sehen.',
     visAll: 'Alle sehen alle',
     visOwn: 'Nur eigene (Chef alle)',
     signIn: 'Anmelden',
@@ -262,7 +263,8 @@ const I18N = {
     fallbackEmpty: 'Fallback if empty:',
     measured: 'Recorded',
     projected: 'Projected (~)',
-    commentsLbl: 'Comments:',
+    commentsLbl: 'Comment visibility',
+    commentsDesc: 'Controls whether regular users see other users’ comments.',
     visAll: 'All visible',
     visOwn: 'Own only (Admin all)',
     signIn: 'Sign in',
@@ -807,7 +809,6 @@ function renderAuthState() {
 
   const allowRep = canViewReports();
   repBtn?.classList.toggle('hidden', !allowRep);
-  document.getElementById('rep-vis-pills')?.classList.toggle('hidden', !isAdminUser() && state.hasAdmin);
   if (!allowRep && state.view === 'report') {
     setView('board');
   }
@@ -936,6 +937,17 @@ async function openRolesModal(tab = state.rolesTab || 'matrix') {
 
     body.innerHTML = `
       ${tabsHtml}
+      <div class="drawer-label">${esc(t('commentsLbl'))}</div>
+      <div class="user-role-row" style="margin-bottom:16px;">
+        <div>
+          <strong style="font-size:0.84rem; color:var(--ink);">${esc(t('commentsLbl'))}</strong>
+          <div style="font-size:0.74rem; color:var(--silver-3);">${esc(t('commentsDesc'))}</div>
+        </div>
+        <div class="channel-group" role="group" aria-label="${esc(t('commentsLbl'))}">
+          <button type="button" class="ch-btn js-admin-vis ${state.commentsVisibility === 'all' ? 'active' : ''}" data-vis="all">${esc(t('visAll'))}</button>
+          <button type="button" class="ch-btn js-admin-vis ${state.commentsVisibility === 'own_only' ? 'active' : ''}" data-vis="own_only">${esc(t('visOwn'))}</button>
+        </div>
+      </div>
       <div class="drawer-label">${esc(t('matrixTitle'))}</div>
       <table class="matrix-table">
         <thead>
@@ -1137,11 +1149,6 @@ function applyLanguageToStaticUi() {
   });
   const minLbl = document.querySelector('#rep-min-pills .sep');
   if (minLbl) minLbl.textContent = t('fallbackEmpty');
-  const visLbl = document.querySelector('#rep-vis-pills .sep');
-  if (visLbl) visLbl.textContent = t('commentsLbl');
-  document.querySelectorAll('[data-vis]').forEach((b) => {
-    b.textContent = b.dataset.vis === 'all' ? t('visAll') : t('visOwn');
-  });
 
   // Modals static labels
   const rmTitle = document.getElementById('roles-modal-title');
@@ -2131,6 +2138,21 @@ function init() {
       await openRolesModal(rTab.dataset.rtab);
       return;
     }
+    const visBtn = ev.target.closest('.js-admin-vis');
+    if (visBtn) {
+      try {
+        const res = await api('/api/settings', {
+          method: 'PATCH',
+          body: JSON.stringify({ commentsVisibility: visBtn.dataset.vis })
+        });
+        state.commentsVisibility = res.commentsVisibility;
+        showToast(state.commentsVisibility === 'own_only' ? t('toastVisOwn') : t('toastVisAll'));
+        await openRolesModal('matrix');
+      } catch (err) {
+        showToast(err.message);
+      }
+      return;
+    }
     const roleBtn = ev.target.closest('.js-set-role');
     if (roleBtn) {
       try {
@@ -2304,22 +2326,6 @@ function init() {
     state.report.hourlyRate = ev.target.value.trim();
     clearTimeout(init._rateT);
     init._rateT = setTimeout(loadReport, 220);
-  });
-
-  document.querySelectorAll('[data-vis]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      try {
-        const res = await api('/api/settings', {
-          method: 'PATCH',
-          body: JSON.stringify({ commentsVisibility: btn.dataset.vis })
-        });
-        state.commentsVisibility = res.commentsVisibility;
-        document.querySelectorAll('[data-vis]').forEach((b) => b.classList.toggle('active', b.dataset.vis === state.commentsVisibility));
-        showToast(state.commentsVisibility === 'own_only' ? t('toastVisOwn') : t('toastVisAll'));
-      } catch (err) {
-        showToast(err.message);
-      }
-    });
   });
 
   document.querySelectorAll('.val-badge[data-value]').forEach((btn) => {
