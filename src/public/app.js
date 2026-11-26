@@ -238,7 +238,13 @@ const I18N = {
     toastMinTime: 'Mindestens 1 Minute Zeitaufwand (z. B. 01:00) erfassen.',
     toastVisOwn: 'Aktiv: User sehen nur eigene Kommentare (Chef sieht alle).',
     toastVisAll: 'Aktiv: Alle sehen alle Kommentare.',
-    toastSimilarTo: 'Ähnlich zu'
+    toastSimilarTo: 'Ähnlich zu',
+    iosInstallTitle: 'Als iPhone-App installieren',
+    iosInstallHint: 'Direkt als eigenständige App auf dem Home-Bildschirm speichern:',
+    iosStep1: 'In Safari unten auf das Teilen-Symbol tippen.',
+    iosStep2: 'Nach unten scrollen und «Zum Home-Bildschirm» wählen.',
+    iosStep3: 'Oben rechts auf «Hinzufügen» tippen — fertig.',
+    iosInstallOk: 'Verstanden'
   },
   en: {
     search: 'Search',
@@ -448,7 +454,13 @@ const I18N = {
     toastMinTime: 'Please record at least 1 minute (e.g. 01:00).',
     toastVisOwn: 'Active: Users only see own comments (Admins see all).',
     toastVisAll: 'Active: Everyone sees all comments.',
-    toastSimilarTo: 'Similar to'
+    toastSimilarTo: 'Similar to',
+    iosInstallTitle: 'Install as iPhone App',
+    iosInstallHint: 'Save directly to your Home Screen as a standalone app:',
+    iosStep1: 'Tap the Share icon at the bottom of Safari.',
+    iosStep2: 'Scroll down and choose «Add to Home Screen».',
+    iosStep3: 'Tap «Add» in the top-right corner — done.',
+    iosInstallOk: 'Got it'
   }
 };
 
@@ -2249,6 +2261,7 @@ async function loadReport() {
     ${creditsHtml}
 
     <div class="chart-title">${esc(t('repOverview'))} (${rep.stories.length})</div>
+    <div class="table-scroll">
     <table class="rep-table">
       <thead>
         <tr>
@@ -2264,6 +2277,7 @@ async function loadReport() {
       </thead>
       <tbody>${rowsHtml}</tbody>
     </table>
+    </div>
   `;
 }
 
@@ -2333,17 +2347,40 @@ function init() {
   }
   let deferredPrompt = null;
   const installBtn = document.getElementById('btn-install-app');
+  const iosModal = document.getElementById('ios-install-modal');
+  const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isIosDevice && !isStandalone && !document.body.classList.contains('embed-mode')) {
+    installBtn?.classList.remove('hidden');
+  }
   window.addEventListener('beforeinstallprompt', (ev) => {
     ev.preventDefault();
     deferredPrompt = ev;
     installBtn?.classList.remove('hidden');
   });
   installBtn?.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    installBtn.classList.add('hidden');
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.classList.add('hidden');
+      return;
+    }
+    if (isIosDevice && iosModal) {
+      document.getElementById('ios-install-title').textContent = t('iosInstallTitle');
+      document.getElementById('ios-install-hint').textContent = t('iosInstallHint');
+      document.getElementById('ios-step-1').textContent = t('iosStep1');
+      document.getElementById('ios-step-2').textContent = t('iosStep2');
+      document.getElementById('ios-step-3').textContent = t('iosStep3');
+      document.getElementById('btn-ok-ios-install').textContent = t('iosInstallOk');
+      iosModal.classList.remove('hidden');
+    }
+  });
+  const closeIosModal = () => iosModal?.classList.add('hidden');
+  document.getElementById('btn-close-ios-install')?.addEventListener('click', closeIosModal);
+  document.getElementById('btn-ok-ios-install')?.addEventListener('click', closeIosModal);
+  iosModal?.addEventListener('click', (ev) => {
+    if (ev.target === iosModal) closeIosModal();
   });
 
   // Composer Zeit- & Wheel-Picker einhängen
