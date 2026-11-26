@@ -2,7 +2,8 @@
 
 > **Aufbau angelehnt an Block 4 (Testing, Folien 53–54):**
 > Jeder Testfall enthält ID, Titel, zugeordnete Anforderung, Priorität, Vorbedingungen, konkrete Testschritte und erwartetes Ergebnis.
-> **Transparenz-Hinweis:** Im Protokoll (Abschnitt 2) wird strikt getrennt zwischen der technischen **Vorab-Ausführung durch den KI-Agenten** und der **persönlichen Abnahme durch den Autor (Alban Hyseni)**. Erst nach eigener Durchführung wird ein Test als persönlich abgenommen markiert.
+> **Status-Notiz:** Die Arbeit an dieser ATL wurde am **26.11.2026 als gesicherter Zwischenstand vorerst auf Hold gesetzt**.
+> **Transparenz-Hinweis:** Im Protokoll (Abschnitt 2) wird strikt getrennt zwischen der technischen **Vorab-Ausführung durch den KI-Agenten** und der **persönlichen Abnahme durch den Autor (Alban Hyseni)**. Die persönliche Abnahme folgt bei Wiederaufnahme vor dem 10.01.2027.
 
 ---
 

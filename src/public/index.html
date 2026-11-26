@@ -49,6 +49,9 @@
           <button type="button" class="lang-btn active" data-lang="de">DE</button>
           <button type="button" class="lang-btn" data-lang="en">EN</button>
         </div>
+        <button type="button" id="btn-guide" class="profile-btn info-btn" aria-label="Kurzanleitung" title="Kurzanleitung">
+          <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </button>
         <div class="notif-wrap">
           <button type="button" id="btn-notif" class="profile-btn notif-btn" aria-label="Benachrichtigungen" title="Benachrichtigungen">
             <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -72,23 +75,51 @@
 
     <!-- ANSICHT A: BOARD -->
     <div id="board-view">
-      <form id="feedback-form" class="composer">
-        <input
-          type="text"
-          id="fb-title"
-          class="composer-title"
-          required
-          maxlength="140"
-          placeholder="Titel der Idee"
-          aria-label="Titel der Idee"
-        />
+      <section id="guide-banner" class="guide-banner hidden no-print" aria-label="Kurzanleitung">
+        <div class="guide-head">
+          <span class="guide-title-wrap">
+            <svg class="lucide guide-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <strong id="guide-title">So funktioniert Requirements Engine</strong>
+          </span>
+          <button type="button" id="btn-dismiss-guide" class="guide-close-btn">Verstanden</button>
+        </div>
+        <ul class="guide-list">
+          <li id="guide-step-1"><strong>Erfassen:</strong> Titel (mind. 3 Zeichen) und Beschrieb (<strong>mind. 10 Zeichen</strong>) eingeben — Mehrwert, Kanal, Referenz und Zeit sind optional.</li>
+          <li id="guide-step-2"><strong>Zählen (+1):</strong> Wiederkehrende Meldungen mit <code>+1</code> samt realem Zeitaufwand (mind. <code>01:00</code>) erfassen.</li>
+          <li id="guide-step-3"><strong>Steuern:</strong> Klick auf eine Karte öffnet Einzelfälle, Rückfragen, Relevanz-Voting und Status-Aktionen (erster Account = Admin).</li>
+        </ul>
+      </section>
+
+      <form id="feedback-form" class="composer" novalidate>
+        <div class="composer-title-row">
+          <input
+            type="text"
+            id="fb-title"
+            class="composer-title"
+            required
+            minlength="3"
+            maxlength="140"
+            placeholder="Titel der Idee"
+            aria-label="Titel der Idee"
+          />
+          <button type="button" id="btn-composer-info" class="composer-info-btn" aria-label="Eingabehinweise" title="Eingabehinweise">
+            <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </button>
+        </div>
+        <div id="composer-info-strip" class="composer-info-strip hidden" role="note">
+          <svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span id="composer-info-text">Pflichtfelder: Titel (mind. 3 Zeichen) und Beschrieb (mind. 10 Zeichen). Mehrwert, Kanal, Erfasser, Referenz und Zeit (Min:Sek) sind optional.</span>
+        </div>
         <textarea
           id="fb-text"
           rows="2"
           required
-          placeholder="Beschrieb der Idee oder des Problems…"
+          minlength="10"
+          placeholder="Beschrieb der Idee oder des Problems (mind. 10 Zeichen)…"
           aria-label="Beschrieb"
         ></textarea>
+        <div id="fb-char-hint" class="char-hint hidden" aria-live="polite"></div>
+        <div id="composer-error" class="composer-error hidden" role="alert" aria-live="assertive"></div>
         <div class="value-row" role="group" aria-label="Mehrwert für das Unternehmen">
           <span class="value-label" id="fb-value-label">Mehrwert</span>
           <button type="button" class="val-badge" data-value="zeitersparnis">Effizienz</button>

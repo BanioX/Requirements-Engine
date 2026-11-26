@@ -868,6 +868,88 @@ body {
   padding-top: 30px;
 }
 
+/* ── Erststart-Kurzanleitung & Eingabehinweise (Lucide Info) ── */
+.guide-banner {
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  border-radius: 14px;
+  padding: 13px 16px;
+  margin-bottom: 16px;
+  animation: popIn 0.16s var(--ease);
+}
+
+.guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.guide-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+
+.guide-ico {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.guide-close-btn {
+  border: 1px solid var(--blue-border);
+  background: var(--surface);
+  color: var(--blue);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s var(--ease);
+}
+
+.guide-close-btn:hover {
+  background: var(--blue);
+  color: #ffffff;
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.81rem;
+  line-height: 1.45;
+  color: var(--silver);
+}
+
+.guide-list code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: rgba(10, 108, 255, 0.08);
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  color: var(--ink);
+}
+
+.info-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.info-btn.active {
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+  color: var(--blue);
+}
+
 /* ── Composer (Floating Swiss Card) ── */
 .composer {
   background: var(--surface);
@@ -884,10 +966,24 @@ body {
   box-shadow: 0 0 0 4px rgba(10, 108, 255, 0.08), var(--shadow);
 }
 
+.composer.has-error {
+  border-color: var(--red-border);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.09), var(--shadow);
+}
+
+.composer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
 .composer-title {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   border: none;
-  border-bottom: 1px solid var(--line);
   outline: none;
   background: transparent;
   font: inherit;
@@ -896,7 +992,93 @@ body {
   letter-spacing: -0.02em;
   color: var(--ink);
   padding: 2px 0 10px;
+}
+
+.composer-info-btn {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--silver-3);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.14s var(--ease);
+}
+
+.composer-info-btn:hover,
+.composer-info-btn.active {
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+}
+
+.composer-info-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 11px;
   margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.composer-info-strip .lucide {
+  color: var(--blue);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.char-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--amber);
+}
+
+.char-hint.is-ok {
+  color: var(--green);
+}
+
+.composer-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+  color: var(--red);
+  font-size: 0.81rem;
+  font-weight: 550;
+  animation: popIn 0.14s var(--ease);
+}
+
+.composer-error .lucide {
+  flex-shrink: 0;
+}
+
+.is-invalid {
+  background: rgba(254, 242, 242, 0.7) !important;
+  border-radius: 8px;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  box-shadow: inset 0 0 0 1px var(--red-border);
+}
+
+.toast.is-error {
+  background: #b91c1c;
 }
 
 .composer-title::placeholder {
@@ -2435,9 +2617,15 @@ body.embed-mode .main-wrap { padding-top: 8px; }
 
   #btn-toggle-report,
   .lang-switch,
+  #btn-guide,
   .notif-wrap,
   .profile-wrap {
     order: 2;
+  }
+
+  #btn-guide {
+    width: 32px;
+    height: 32px;
   }
 
   #btn-toggle-report {
