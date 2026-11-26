@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:26-alpine
 
 ARG APP_VERSION=1.0.0
 ARG GIT_SHA=local
