@@ -15,7 +15,7 @@
 | :--- | :--- | :--- | :--- | :---: |
 | T1.1 | Zielbild & Architektur entwerfen | Architekturdiagramm (Request- & Deployment-Weg) erstellen und gegen die Vorgaben prüfen. | 27.11.2026 | 2.0 h |
 | T1.2 | GitHub-Repo & Grundausstattung anlegen | Repo (`requirements-engine`) inkl. `.gitignore`, `.env.example`, Branch-Schutz, Tests und Projekt-Standard aufsetzen. | 28.11.2026 | 1.5 h |
-| T1.3 | Requirements Engine MVP & DB-Schema umsetzen | Web-UI + REST-API für Klick-Anleitungen, Aktualitäts-Ampel, lokale Feedback-zu-Story-Engine, Entscheid-Log und eBanking-Demodaten bauen. | 04.12.2026 | 6.0 h |
+| T1.3 | Requirements Engine MVP & DB-Schema umsetzen | Web-UI + REST-API für strukturierte Ideen-Erfassung, Zeitaufwand-Tracking, 5-Rollen-RBAC, Entscheid-Log und branchenneutrale Beispieldaten (Kundenservice & Logistik) bauen. | 04.12.2026 | 6.0 h |
 | T1.4 | Dockerfile & `docker-compose.yml` erstellen | Schlankes Multi-Stage-/Non-Root-Dockerfile und Compose-Datei mit getrennten `app`- und `db`-Containern erstellen. | 06.12.2026 | 2.5 h |
 
 ### US-2 (Muss-Punkt 1 – Datenpersistenz)
