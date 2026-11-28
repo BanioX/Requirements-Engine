@@ -1,0 +1,21 @@
+{
+  "name": "onestrand-requirements-engine-confluence",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "ONESTRAND Requirements Engine — Natives Confluence Forge Addon (100 % Forge Storage, kein externer Server)",
+  "scripts": {
+    "build:ui": "esbuild static/board/src/main.js --bundle --format=iife --minify --outfile=static/board/build/bundle.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "dependencies": {
+    "@forge/api": "^6.0.0",
+    "@forge/bridge": "^5.0.0",
+    "@forge/kvs": "^1.0.0",
+    "@forge/resolver": "^1.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

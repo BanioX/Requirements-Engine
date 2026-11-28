@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ONESTRAND · Requirements Engine (Confluence Native)</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <span class="os-pill">ONESTRAND</span>
+        <span class="brand-prod">Requirements Engine</span>
+        <span class="storage-pill" id="storage-badge" title="Jede Idee wird als echte Confluence-Unterseite in Ihrer Instanz gespeichert — keine Verbindung zu externen Servern">
+          <svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span id="storage-badge-txt">Confluence-Seiten · 0 Extern</span>
+        </span>
+      </div>
+
+      <div class="topbar-actions">
+        <span class="user-pill" id="actor-pill">Confluence</span>
+        <button type="button" class="quiet-btn" id="btn-csv">
+          <svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          <span>CSV</span>
+        </button>
+        <div class="lang-switch" role="group" aria-label="Sprache">
+          <button type="button" class="lang-btn active" data-lang="de">DE</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+        <button type="button" class="icon-btn" id="btn-guide" aria-label="Kurzanleitung" title="Kurzanleitung">
+          <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <section id="guide-banner" class="guide-banner hidden">
+      <div class="guide-head">
+        <span class="guide-title-wrap">
+          <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <strong id="guide-title">100 % nativ in Confluence — ohne externen Server</strong>
+        </span>
+        <button type="button" class="guide-close" id="btn-dismiss-guide">Verstanden</button>
+      </div>
+      <ul class="guide-list">
+        <li id="guide-1">Jeder erfasste Eintrag wird automatisch als <strong>echte Confluence-Unterseite</strong> direkt unter dieser Seite gespeichert — es verlässt kein einziges Byte Ihre Confluence-Instanz (bleibt auch ohne Addon erhalten!).</li>
+        <li id="guide-2">Erfassen: Titel (mind. 3 Zeichen) und Beschrieb (mind. 10 Zeichen) eingeben; Mehrwert, Kanal, Referenz und Dauer (MM:SS) sind optional.</li>
+        <li id="guide-3">Wiederkehrende Fälle per +1 (mind. 01:00) zählen; jedes Update aktualisiert direkt die echte Confluence-Unterseite inkl. Versionshistorie.</li>
+      </ul>
+    </section>
+
+    <section class="kpi-strip" id="kpi-strip"></section>
+
+    <form id="composer-form" class="composer" novalidate>
+      <div class="composer-title-row">
+        <input type="text" id="fb-title" class="composer-title" maxlength="140" placeholder="Titel der Idee" aria-label="Titel der Idee" />
+        <button type="button" id="btn-composer-info" class="composer-info-btn" aria-label="Eingabehinweise" title="Eingabehinweise">
+          <svg class="lucide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </button>
+      </div>
+      <div id="composer-info-strip" class="info-strip hidden">
+        <svg class="lucide" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span id="composer-info-txt">Pflichtfelder: Titel (mind. 3 Zeichen) und Beschrieb (mind. 10 Zeichen). Mehrwert, Kanal, Referenz und Zeit (MM:SS) sind optional.</span>
+      </div>
+      <textarea id="fb-desc" rows="2" placeholder="Beschrieb der Idee oder des Problems (mind. 10 Zeichen)…" aria-label="Beschrieb"></textarea>
+      <div id="fb-char-hint" class="char-hint hidden"></div>
+      <div id="composer-error" class="composer-error hidden" role="alert"></div>
+
+      <div class="value-row" role="group" aria-label="Mehrwert">
+        <span class="row-label" id="lbl-value">Mehrwert</span>
+        <button type="button" class="pill-btn val-btn" data-val="zeitersparnis">Effizienz</button>
+        <button type="button" class="pill-btn val-btn" data-val="kundenaufwand">Kundenerlebnis</button>
+        <button type="button" class="pill-btn val-btn" data-val="erklaerung">Klarheit</button>
+        <button type="button" class="pill-btn val-btn" data-val="fehler">Qualität</button>
+        <button type="button" class="pill-btn val-btn" data-val="umsatz">Umsatz</button>
+        <button type="button" class="pill-btn val-btn" data-val="bindung">Kundenbindung</button>
+      </div>
+
+      <div class="composer-bar">
+        <div class="composer-left">
+          <div class="seg-group" role="group" aria-label="Kanal">
+            <button type="button" class="seg-btn ch-btn" data-ch="Persönlich">Persönlich</button>
+            <button type="button" class="seg-btn ch-btn" data-ch="Telefon">Telefon</button>
+            <button type="button" class="seg-btn ch-btn" data-ch="Chat">Chat</button>
+            <button type="button" class="seg-btn ch-btn" data-ch="E-Mail">E-Mail</button>
+          </div>
+          <input type="text" id="fb-ref" class="mini-input" placeholder="Referenz" aria-label="Referenz" />
+          <input type="text" id="fb-dur" class="mini-input dur-input" placeholder="MM:SS" aria-label="Dauer MM:SS" />
+        </div>
+        <button type="submit" class="btn-primary" id="btn-submit">Erfassen</button>
+      </div>
+    </form>
+
+    <div class="filter-row">
+      <div class="seg-group" role="group" aria-label="Aufwand">
+        <button type="button" class="seg-btn active" data-feas="alle">Alle</button>
+        <button type="button" class="seg-btn" data-feas="einfach"><span class="dot dot-green"></span>Einfach</button>
+        <button type="button" class="seg-btn" data-feas="mittel"><span class="dot dot-amber"></span>Mittel</button>
+        <button type="button" class="seg-btn" data-feas="aufwaendig"><span class="dot dot-red"></span>Aufwändig</button>
+      </div>
+      <div class="seg-group" role="group" aria-label="Status">
+        <button type="button" class="seg-btn active" data-mode="all">Alle</button>
+        <button type="button" class="seg-btn" data-mode="active">In Arbeit</button>
+        <button type="button" class="seg-btn" data-mode="done">Erledigt</button>
+      </div>
+    </div>
+
+    <section id="stories-list" class="stories-list" aria-label="Einträge">
+      <div class="empty-state">Lade Confluence-Speicher…</div>
+    </section>
+
+    <footer class="legal-footer">
+      <span>ONESTRAND · Requirements Engine — <strong>Runs on Atlassian</strong> (Daten bleiben 100 % in Ihrer Confluence-Instanz)</span>
+      <span class="legal-links">
+        <button type="button" class="text-link" id="btn-imprint">Impressum</button>
+        <span>·</span>
+        <button type="button" class="text-link" id="btn-privacy">Datenschutz</button>
+      </span>
+    </footer>
+  </div>
+
+  <div id="legal-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <strong id="legal-title">Impressum</strong>
+        <button type="button" class="icon-btn" id="btn-close-legal" aria-label="Schliessen">×</button>
+      </div>
+      <div id="legal-body" class="legal-body"></div>
+    </div>
+  </div>
+
+  <script src="./bundle.js"></script>
+</body>
+</html>
