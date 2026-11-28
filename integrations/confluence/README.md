@@ -1,25 +1,24 @@
-# Confluence-Addon Integration (Atlassian Forge / Iframe-Makro)
+# Natives Confluence-Addon (**«Runs on Atlassian»** — Echte Confluence-Unterseiten, 0 externe Server!)
 
-Die **Requirements Engine** ist von Grund auf so aufgebaut, dass sie sich ohne Code-Änderungen in **Atlassian Confluence** (Cloud & Data Center) integrieren lässt:
+Dieses Verzeichnis enthält das **vollständig native Atlassian-Forge-Confluence-Addon** für **ONESTRAND · Requirements Engine**.
 
-## Weg 1: Sofort nutzbar per Confluence Iframe-Makro (0 Aufwand)
-1. In der `.env` die eigene Confluence-Domain freischalten (CSP `frame-ancestors`):
-   ```env
-   EMBED_ALLOWED_ORIGINS=https://deine-firma.atlassian.net
+## Funktionsprinzip: Jede Idee = eine echte Confluence-Unterseite
+- **100 % in Confluence gespeichert (kein externer Server, nie an `re.onestrand.ch`!):**
+  - Jede im Makro erfasste Idee wird direkt über die interne Confluence REST API v2 als **echte, sichtbare Confluence-Unterseite** (`[REQ-01] …`) unterhalb der Board-Seite angelegt.
+  - Der lesbare Seiteninhalt (Übersichtstabelle, Beschrieb, Einzelfälle `+1` mit `MM:SS`, Rückfragen & Relevanz-Protokoll) bleibt **selbst dann vollständig erhalten und lesbar, wenn das Addon irgendwann deinstalliert wird** (kein Vendor Lock-in!).
+  - Die strukturierten JSON-Daten hängen als Confluence Page Property (`onestrand_req_v1`) direkt an derselben Unterseite.
+  - Jedes `+1`, jeder Statuswechsel und jede Rückfrage aktualisiert die Confluence-Unterseite inklusive normaler **Confluence-Versionshistorie**.
+- **Plattform-erzwungene Abschottung:** In [manifest.yml](manifest.yml) sind **keinerlei `permissions.external`-Freigaben** eingetragen. Atlassian blockiert damit technisch jede ausgehende Verbindung an externe Server.
+- **Kein zweites Login:** Das Addon erkennt automatisch den angemeldeten Confluence-Benutzer (`read:confluence-user`).
+
+---
+
+## 1-Klick-Deployment auf deine Confluence-Site (z. B. `onestrand.atlassian.net`)
+
+1. Einmalig einen Atlassian API-Token erstellen unter: https://id.atlassian.com/manage-profile/security/api-tokens
+2. In PowerShell im Ordner `integrations\confluence` das 1-Klick-Skript ausführen (Token bleibt strikt lokal im Windows-Tresor):
+   ```powershell
+   cd C:\Users\hysen\Projekte\requirements-engine\integrations\confluence
+   .\deploy-to-confluence.ps1 -Site onestrand.atlassian.net
    ```
-2. Container neu starten (`docker compose up -d app`).
-3. Auf einer beliebigen Confluence-Seite das Standard-Makro **`/iframe`** einfügen mit URL:
-   ```text
-   https://<deine-requirements-engine-url>/?embed=1
-   ```
-   Der Parameter `?embed=1` blendet automatisch Topbar und Fusszeile aus, sodass sich das Board nahtlos in die Confluence-Seite einfügt.
-
-## Weg 2: Verpackung als echtes Atlassian Forge Confluence-Addon
-Die beiliegende `manifest.yml` zeigt die minimale Atlassian-Forge-Konfiguration, um Requirements Engine als eigenes Makro (`/requirements-engine`) im Confluence-Menü bereitzustellen (über Atlassian Forge CLI `forge register && forge deploy && forge install`):
-- **Frontend:** Ruft das bestehende REST-API (`/api/stories`, `/api/stories/:id/vote`, `/api/stories/:id/feasibility`, `/api/stories/:id/decision`, `/api/stories/:id/jira`) über eine konfigurierbare Backend-URL auf.
-- **Vorteil:** Eine einzige Datenbasis (PostgreSQL) — sowohl eigenständig als auch direkt innerhalb von Confluence nutzbar.
-
-## Optionale Jira- & Excel-Schnittstelle (REST API / CSV)
-Die Requirements Engine hält die Hauptoberfläche bewusst frei von Tool-Ballast, bietet aber bei Bedarf offene Schnittstellen für die Übergabe ins Issue-Tracking und Reporting:
-1. **Excel / BI-Auswertung:** Über den Management-Report (`/api/stories/export/csv`) stehen alle Themen mit getrennten Spalten *Menge* und *Dauer* (`Minuten` sowie `MM:SS`), *Aufwand* und *Mehrwert* als UTF-8 CSV bereit.
-2. **Optionaler Jira-API- & CSV-Export:** Werden `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` und `JIRA_PROJECT_KEY` in der lokalen `.env` hinterlegt, lässt sich ein Thema per API (`POST /api/stories/:id/jira`) über die **Jira REST API v3 (Atlassian Document Format)** anlegen oder über `/api/stories/export/jira-csv` als Jira-CSV exportieren.
+3. In Confluence eine beliebige Seite öffnen (z. B. *«Requirements-Eingang»*), **`/ONESTRAND`** tippen und das Makro **«ONESTRAND Requirements Engine»** einfügen — jede neue Idee erscheint ab sofort als echte Unterseite in der linken Confluence-Seitenleiste!

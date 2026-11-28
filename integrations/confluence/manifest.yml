@@ -1,20 +1,33 @@
-# Vorlage für Atlassian Forge (Confluence Cloud Macro Addon)
-# Nutzung: `forge register` -> `forge deploy` -> `forge install`
+# ONESTRAND · Requirements Engine — Natives Atlassian Forge Confluence Addon
+# 100 % "Runs on Atlassian": Jede Idee wird als ECHTE Confluence-Unterseite gespeichert (0 externe Server!)
+# Copyright © 2026 Onestrand | Alban Hyseni. Alle Rechte vorbehalten.
+
 modules:
   macro:
     - key: requirements-engine-board
-      title: Requirements Engine
-      description: Eingegangenes Kunden- & Team-Feedback mit Ampel-Machbarkeit und Voting
+      title: ONESTRAND Requirements Engine
+      description: Erfasst Ideen direkt als echte, sichtbare Confluence-Unterseiten inkl. Zeitaufwand (MM:SS), Rückfragen, Relevanz-Voting & CSV — 0 externe Server.
       resource: board-ui
       layout: full-width
+      resolver:
+        function: macro-resolver
+  function:
+    - key: macro-resolver
+      handler: index.handler
+
 resources:
   - key: board-ui
-    path: ../../src/public
+    path: static/board/build
+
 permissions:
-  external:
-    fetch:
-      backend:
-        - address: "https://*.trycloudflare.com"
+  scopes:
+    - read:page:confluence
+    - write:page:confluence
+    - delete:page:confluence
+    - read:confluence-user
+    - storage:app
+  # Bewusst KEIN permissions.external — Atlassian blockiert damit technisch jeden Datenabfluss an externe Server!
+
 app:
   runtime:
     name: nodejs24.x
